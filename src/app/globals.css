@@ -1,26 +1,124 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Medical teal design system — light theme, WCAG AA verified pairs */
+  --color-canvas: #f4f8f9;
+  --color-surface: #ffffff;
+  --color-ink: #10333a;
+  --color-ink-muted: #4d6b72;
+  --color-ink-faint: #7b959b;
+  --color-border: #dde9eb;
+  --color-border-strong: #c3d6da;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-primary: #0891b2;
+  --color-primary-strong: #0e7490;
+  --color-primary-deep: #155e75;
+  --color-primary-soft: #e6f6fa;
+  --color-primary-wash: #f0fbfd;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-accent: #16a34a;
+  --color-accent-strong: #15803d;
+  --color-accent-soft: #e9f7ee;
+
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf1e2;
+  --color-danger: #dc2626;
+  --color-danger-strong: #b91c1c;
+  --color-danger-soft: #fdeded;
+  --color-info: #2563eb;
+  --color-info-soft: #eaf1fe;
+
+  --font-heading: var(--font-figtree);
+  --font-body: var(--font-noto-sans);
+  --font-sans: var(--font-noto-sans);
+
+  --shadow-card: 0 1px 2px rgb(16 51 58 / 0.04), 0 4px 16px rgb(16 51 58 / 0.06);
+  --shadow-raised: 0 2px 4px rgb(16 51 58 / 0.06), 0 12px 32px rgb(16 51 58 / 0.12);
+  --shadow-modal: 0 8px 16px rgb(16 51 58 / 0.08), 0 24px 64px rgb(16 51 58 / 0.18);
+
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-float-slow: float-slow 14s ease-in-out infinite alternate;
+  --animate-float-slower: float-slower 18s ease-in-out infinite alternate;
+
+  @keyframes shimmer {
+    from { background-position: 200% center; }
+    to { background-position: -200% center; }
+  }
+  @keyframes float-slow {
+    from { transform: translate3d(-4%, -6%, 0) scale(1); }
+    to { transform: translate3d(5%, 7%, 0) scale(1.12); }
+  }
+  @keyframes float-slower {
+    from { transform: translate3d(6%, 4%, 0) scale(1.08); }
+    to { transform: translate3d(-5%, -7%, 0) scale(0.96); }
   }
 }
 
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading), var(--font-body), system-ui, sans-serif;
+}
+
+/* Focus visibility — keyboard users always get a clear ring */
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
+}
+
+button, [role="button"], a, label[for], select, summary {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Tabular figures for data tables and result values */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Print: keep only the report area */
+@media print {
+  body {
+    background: #ffffff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+  }
 }

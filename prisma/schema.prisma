@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PatientStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ResultStatus {
+  PENDING
+  COMPLETED
+  REVIEWED
+}
+
+enum ValueFlag {
+  NORMAL
+  LOW
+  HIGH
+  CRITICAL
+}
+
+enum ResetRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+enum ActorType {
+  ADMIN
+  PATIENT
+  SYSTEM
+}
+
+model Patient {
+  id            String        @id @default(cuid())
+  patientId     String        @unique // clinic-issued identifier, used as login username
+  fullName      String
+  email         String?
+  phone         String?
+  dateOfBirth   DateTime?
+  gender        String?
+  status        PatientStatus @default(ACTIVE)
+  passwordHash  String
+  // set when an admin regenerates credentials; cleared on first login
+  mustChangePassword Boolean  @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  results       LabResult[]
+  resetRequests PasswordResetRequest[]
+
+  @@index([fullName])
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  fullName     String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model LabResult {
+  id                String       @id @default(cuid())
+  reference         String       @unique // lab accession / report number
+  patient           Patient      @relation(fields: [patientDbId], references: [id], onDelete: Cascade)
+  patientDbId       String
+  category          String // Hematology, Biochemistry, Serology, ...
+  testName          String
+  status            ResultStatus @default(COMPLETED)
+  orderingPhysician String?
+  specimen          String? // Blood, Urine, ...
+  collectedAt       DateTime
+  reportedAt        DateTime?
+  notes             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  values LabResultValue[]
+
+  @@index([patientDbId, collectedAt(sort: Desc)])
+  @@index([category])
+  @@index([status])
+}
+
+model LabResultValue {
+  id          String    @id @default(cuid())
+  result      LabResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  resultId    String
+  analyte     String // e.g. Hemoglobin
+  value       String // kept as string to allow "Positive", "<0.01", etc.
+  unit        String?
+  refRange    String? // display form, e.g. "13.0 – 17.0"
+  flag        ValueFlag @default(NORMAL)
+  sortOrder   Int       @default(0)
+
+  @@index([resultId])
+}
+
+model PasswordResetRequest {
+  id         String             @id @default(cuid())
+  // patient may not be resolvable if the ID typed at submission is wrong,
+  // so we keep the raw submitted ID alongside the optional relation
+  submittedPatientId String
+  patient    Patient?           @relation(fields: [patientDbId], references: [id], onDelete: SetNull)
+  patientDbId String?
+  email      String
+  note       String
+  idPhotoPath String // stored under /uploads, served through an authenticated route
+  status     ResetRequestStatus @default(PENDING)
+  reviewedBy String? // admin username
+  reviewNote String?
+  reviewedAt DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  actorType ActorType
+  actorId   String // admin username / patient ID / "integration"
+  action    String // e.g. PATIENT_CREATED, PASSWORD_REGENERATED, LOGIN, RESULT_VIEWED
+  target    String? // e.g. patient ID or result reference the action applies to
+  detail    String?
+  createdAt DateTime  @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorType, actorId])
+}
