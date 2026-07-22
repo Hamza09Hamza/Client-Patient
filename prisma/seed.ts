@@ -1,5 +1,4 @@
 import { PrismaClient, ValueFlag, ResultStatus } from "@prisma/client";
-import bcrypt from "bcryptjs";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -130,6 +129,16 @@ function buildValues(panel: PanelSpec, abnormalChance: number) {
 }
 
 async function main() {
+  // This script wipes every table before reseeding — never let it touch a
+  // real clinic database by accident.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_PROD_SEED !== "true") {
+    console.error(
+      "Refusing to seed: NODE_ENV=production. This script deletes all existing data.\n" +
+        "If you really mean to do this (e.g. a fresh staging environment), set ALLOW_PROD_SEED=true.",
+    );
+    process.exit(1);
+  }
+
   console.log("Seeding clinic_portal ...");
 
   await db.auditLog.deleteMany();
@@ -139,13 +148,11 @@ async function main() {
   await db.patient.deleteMany();
   await db.admin.deleteMany();
 
-  const hash = (pw: string) => bcrypt.hash(pw, 12);
-
   await db.admin.create({
     data: {
       username: "admin",
       fullName: "Clinic Administrator",
-      passwordHash: await hash("ClinicAdmin!2026"),
+      password: "ClinicAdmin!2026",
     },
   });
 
@@ -169,7 +176,7 @@ async function main() {
         phone: spec.phone,
         dateOfBirth: spec.dateOfBirth,
         gender: spec.gender,
-        passwordHash: await hash(spec.password),
+        password: spec.password,
         lastLoginAt: new Date(now - rand(1, 20) * 86_400_000),
       },
     });

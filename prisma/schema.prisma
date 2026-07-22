@@ -46,7 +46,9 @@ model Patient {
   dateOfBirth   DateTime?
   gender        String?
   status        PatientStatus @default(ACTIVE)
-  passwordHash  String
+  // stored in plaintext by product decision (admins must be able to view/recall
+  // credentials) — see docs/API.md and README security section for the tradeoff
+  password      String
   // set when an admin regenerates credentials; cleared on first login
   mustChangePassword Boolean  @default(false)
   lastLoginAt   DateTime?
@@ -60,12 +62,13 @@ model Patient {
 }
 
 model Admin {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  fullName     String
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  username  String   @unique
+  fullName  String
+  // plaintext by product decision — see docs/API.md and README security section
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model LabResult {

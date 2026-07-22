@@ -4,21 +4,31 @@ import { CopyButton } from "@/components/ui/copy-button";
 interface CredentialRevealProps {
   patientId: string;
   password: string;
+  /** "generated" for a brand-new password, "viewed" for recalling the existing one */
+  mode?: "generated" | "viewed";
 }
 
 /**
- * One-time credential panel. The password only exists in this response —
- * it is stored hashed and can never be displayed again, only regenerated.
+ * Credential panel shown after generating or viewing a patient's password.
+ * Every view is written to the audit log — see viewPatientPassword().
  */
-export function CredentialReveal({ patientId, password }: CredentialRevealProps) {
+export function CredentialReveal({ patientId, password, mode = "generated" }: CredentialRevealProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-2.5 rounded-xl border border-warn/25 bg-warn-soft px-3.5 py-3">
         <ShieldAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warn" />
         <p className="text-[13px] leading-relaxed text-ink">
-          <span className="font-semibold">Shown only once.</span> Copy these credentials and
-          hand them to the patient through a channel you trust. If they are lost, regenerate
-          a new password — this one cannot be recovered.
+          {mode === "generated" ? (
+            <>
+              <span className="font-semibold">New credentials generated.</span> Hand them to
+              the patient through a channel you trust.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Current credentials.</span> This view was
+              recorded in the audit log.
+            </>
+          )}
         </p>
       </div>
 

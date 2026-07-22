@@ -13,6 +13,7 @@ import {
   EditPatientButton,
   RegeneratePasswordButton,
   ToggleStatusButton,
+  ViewPasswordButton,
 } from "./patient-actions";
 
 export const metadata: Metadata = { title: "Patient" };
@@ -86,6 +87,7 @@ export default async function AdminPatientDetailPage({
 
       <FadeIn delay={0.08} className="flex flex-wrap gap-2.5">
         <EditPatientButton patient={clientPatient} />
+        <ViewPasswordButton patient={clientPatient} />
         <RegeneratePasswordButton patient={clientPatient} />
         <ToggleStatusButton patient={clientPatient} />
       </FadeIn>

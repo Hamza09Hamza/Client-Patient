@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { checkIntegrationAuth } from "@/lib/integration-auth";
-import { generatePassword, hashPassword } from "@/lib/password";
+import { generatePassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
 
 const bodySchema = z.object({
@@ -27,7 +27,8 @@ const bodySchema = z.object({
  * - If the patient ID already exists, a fresh password is generated, replacing
  *   the previous one.
  *
- * The plaintext password exists only in this response — it is stored hashed.
+ * The generated password is returned here and also stored as-is (see the
+ * README security section for why this system stores credentials in plaintext).
  */
 export async function POST(request: NextRequest) {
   const denied = checkIntegrationAuth(request);
@@ -50,14 +51,13 @@ export async function POST(request: NextRequest) {
   const data = parsed.data;
 
   const password = generatePassword();
-  const passwordHash = await hashPassword(password);
 
   const existing = await db.patient.findUnique({ where: { patientId: data.patientId } });
 
   if (existing) {
     await db.patient.update({
       where: { id: existing.id },
-      data: { passwordHash, mustChangePassword: true },
+      data: { password, mustChangePassword: true },
     });
     await audit("SYSTEM", "integration", "PASSWORD_REGENERATED", data.patientId);
     return NextResponse.json({
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       phone: data.phone ?? null,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
       gender: data.gender ?? null,
-      passwordHash,
+      password,
       mustChangePassword: true,
     },
   });

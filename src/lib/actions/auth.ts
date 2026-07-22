@@ -43,7 +43,7 @@ export async function patientLogin(
   }
 
   const patient = await db.patient.findUnique({ where: { patientId: username } });
-  if (!patient || !(await verifyPassword(password, patient.passwordHash))) {
+  if (!patient || !verifyPassword(password, patient.password)) {
     await audit("PATIENT", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
     return { error: GENERIC_ERROR };
   }
@@ -80,7 +80,7 @@ export async function adminLogin(
   }
 
   const admin = await db.admin.findUnique({ where: { username } });
-  if (!admin || !(await verifyPassword(password, admin.passwordHash))) {
+  if (!admin || !verifyPassword(password, admin.password)) {
     await audit("ADMIN", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
     return { error: GENERIC_ERROR };
   }

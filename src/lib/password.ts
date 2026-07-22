@@ -1,5 +1,4 @@
-import { randomInt } from "crypto";
-import bcrypt from "bcryptjs";
+import { randomInt, timingSafeEqual } from "crypto";
 
 // Unambiguous alphabet: no 0/O, 1/l/I, or symbols that get mangled when
 // credentials are read over the phone or copied from a printout.
@@ -31,10 +30,18 @@ export function generatePassword(): string {
   return [group(), group(), group()].join("-");
 }
 
-export async function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, 12);
-}
-
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plain, hash);
+/**
+ * Constant-time comparison against the stored plaintext password, so a
+ * failed login can't be timed to leak how many leading characters matched.
+ */
+export function verifyPassword(submitted: string, stored: string): boolean {
+  const a = Buffer.from(submitted);
+  const b = Buffer.from(stored);
+  if (a.length !== b.length) {
+    // still run a comparison of equal length so the branch above doesn't
+    // itself become a length oracle
+    timingSafeEqual(Buffer.alloc(b.length), Buffer.alloc(b.length));
+    return false;
+  }
+  return timingSafeEqual(a, b);
 }

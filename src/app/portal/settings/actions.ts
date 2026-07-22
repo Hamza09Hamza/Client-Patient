@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requirePatient } from "@/lib/dal";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
 
 export interface ChangePasswordState {
@@ -41,13 +41,13 @@ export async function changePassword(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const patient = await db.patient.findUniqueOrThrow({ where: { id: session.sub } });
-  if (!(await verifyPassword(parsed.data.current, patient.passwordHash))) {
+  if (!verifyPassword(parsed.data.current, patient.password)) {
     return { error: "Your current password is incorrect." };
   }
 
   await db.patient.update({
     where: { id: patient.id },
-    data: { passwordHash: await hashPassword(parsed.data.next), mustChangePassword: false },
+    data: { password: parsed.data.next, mustChangePassword: false },
   });
   await audit("PATIENT", session.username, "PASSWORD_CHANGED");
   return { ok: true };

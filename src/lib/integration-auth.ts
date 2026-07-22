@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * Guards integration endpoints: requires the shared key in x-api-key.
+ * Guards integration endpoints: requires `Authorization: Bearer <key>`.
  * Returns an error response to send, or null when the request is allowed.
+ * See docs/API.md for the full integration contract.
  */
 export function checkIntegrationAuth(request: NextRequest): NextResponse | null {
   const expected = process.env.INTEGRATION_API_KEY;
@@ -24,8 +25,16 @@ export function checkIntegrationAuth(request: NextRequest): NextResponse | null 
     );
   }
 
-  const provided = request.headers.get("x-api-key") ?? "";
-  const a = Buffer.from(provided);
+  const authHeader = request.headers.get("authorization") ?? "";
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return NextResponse.json(
+      { error: 'Missing or malformed Authorization header. Expected: "Bearer <api-key>".' },
+      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="integration"' } },
+    );
+  }
+
+  const a = Buffer.from(token);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: "Invalid API key." }, { status: 401 });

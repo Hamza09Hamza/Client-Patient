@@ -2,11 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, KeyRound, Pencil, ShieldOff, ShieldCheck } from "lucide-react";
+import { AlertCircle, Eye, KeyRound, Pencil, ShieldOff, ShieldCheck } from "lucide-react";
 import {
   regeneratePatientPassword,
   togglePatientStatus,
   updatePatient,
+  viewPatientPassword,
   type AdminActionState,
 } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,56 @@ export function EditPatientButton({ patient }: { patient: PatientData }) {
             </Button>
           </div>
         </form>
+      </Modal>
+    </>
+  );
+}
+
+export function ViewPasswordButton({ patient }: { patient: PatientData }) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<AdminActionState, FormData>(
+    viewPatientPassword,
+    {},
+  );
+
+  function close() {
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Eye aria-hidden className="size-4" />
+        View password
+      </Button>
+      <Modal open={open} onClose={close} title="Patient credentials">
+        {state.ok && state.password && state.patientId ? (
+          <div className="space-y-5">
+            <CredentialReveal patientId={state.patientId} password={state.password} mode="viewed" />
+            <Button onClick={close} variant="secondary" className="w-full">
+              Done
+            </Button>
+          </div>
+        ) : (
+          <form action={action} className="space-y-5">
+            <input type="hidden" name="id" value={patient.id} />
+            <ErrorNote message={state.error} />
+            <p className="text-sm leading-relaxed text-ink-muted">
+              Reveal the current password for{" "}
+              <span className="font-semibold text-ink">{patient.fullName}</span>. This action
+              is recorded in the audit log.
+            </p>
+            <div className="flex justify-end gap-2.5">
+              <Button type="button" variant="ghost" onClick={close}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={pending}>
+                <Eye aria-hidden className="size-4" />
+                Reveal password
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   );

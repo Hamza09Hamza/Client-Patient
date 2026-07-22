@@ -41,15 +41,23 @@ export default async function AdminSettingsPage() {
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
               External clinic systems can provision patients and push results through the
-              integration API. Requests must carry the shared key in the{" "}
+              integration API. Requests must carry the shared key as a Bearer token in the{" "}
               <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
-                x-api-key
+                Authorization
               </code>{" "}
-              header (configured on the server as{" "}
+              header —{" "}
+              <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
+                Authorization: Bearer &lt;key&gt;
+              </code>{" "}
+              (configured on the server as{" "}
               <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
                 INTEGRATION_API_KEY
               </code>
-              ).
+              ). Full reference:{" "}
+              <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
+                docs/API.md
+              </code>
+              .
             </p>
             <dl className="mt-4 space-y-2.5 text-[13px]">
               <div className="rounded-xl border border-border bg-canvas p-3">

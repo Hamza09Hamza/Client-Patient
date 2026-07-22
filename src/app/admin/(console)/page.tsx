@@ -28,6 +28,7 @@ const ACTION_LABELS: Record<string, string> = {
   PATIENT_DISABLED: "disabled patient",
   PATIENT_ENABLED: "re-enabled patient",
   PASSWORD_REGENERATED: "regenerated password for",
+  PASSWORD_VIEWED: "viewed the password for",
   PASSWORD_CHANGED: "changed their password",
   RESET_REQUESTED: "requested a password reset",
   RESET_APPROVED: "approved a reset for",

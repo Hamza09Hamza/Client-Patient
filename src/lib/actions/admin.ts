@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
-import { generatePassword, hashPassword, verifyPassword } from "@/lib/password";
+import { generatePassword, verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
 import type { ValueFlag } from "@prisma/client";
 
@@ -61,7 +61,7 @@ export async function createPatient(
       phone: data.phone || null,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
       gender: data.gender || null,
-      passwordHash: await hashPassword(password),
+      password,
       mustChangePassword: true,
     },
   });
@@ -121,12 +121,30 @@ export async function regeneratePatientPassword(
   const password = generatePassword();
   await db.patient.update({
     where: { id },
-    data: { passwordHash: await hashPassword(password), mustChangePassword: true },
+    data: { password, mustChangePassword: true },
   });
 
   await audit("ADMIN", admin.username, "PASSWORD_REGENERATED", patient.patientId);
   revalidatePath(`/admin/patients/${id}`);
   return { ok: true, password, patientId: patient.patientId };
+}
+
+/**
+ * Returns the patient's current password as stored. Every call is
+ * audit-logged since reading a live credential is itself a sensitive action.
+ */
+export async function viewPatientPassword(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+
+  const patient = await db.patient.findUnique({ where: { id } });
+  if (!patient) return { error: "Patient not found." };
+
+  await audit("ADMIN", admin.username, "PASSWORD_VIEWED", patient.patientId);
+  return { ok: true, password: patient.password, patientId: patient.patientId };
 }
 
 export async function togglePatientStatus(
@@ -305,7 +323,7 @@ export async function approveResetRequest(
   await db.$transaction([
     db.patient.update({
       where: { id: request.patient.id },
-      data: { passwordHash: await hashPassword(password), mustChangePassword: true },
+      data: { password, mustChangePassword: true },
     }),
     db.passwordResetRequest.update({
       where: { id },
@@ -377,13 +395,13 @@ export async function changeAdminPassword(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const admin = await db.admin.findUniqueOrThrow({ where: { id: session.sub } });
-  if (!(await verifyPassword(parsed.data.current, admin.passwordHash))) {
+  if (!verifyPassword(parsed.data.current, admin.password)) {
     return { error: "Your current password is incorrect." };
   }
 
   await db.admin.update({
     where: { id: admin.id },
-    data: { passwordHash: await hashPassword(parsed.data.next) },
+    data: { password: parsed.data.next },
   });
   await audit("ADMIN", session.username, "ADMIN_PASSWORD_CHANGED");
   return { ok: true };
