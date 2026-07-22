@@ -23,15 +23,18 @@ export function SplitText({ text, className, delay = 0, stagger = 0.03 }: SplitT
   }
 
   // Words stay whole (inline-block + nowrap) so lines only break between
-  // words; characters animate individually inside each word.
+  // words; characters animate individually inside each word. Offsets are
+  // precomputed (prefix sum) so no variable is mutated during render.
   const words = text.split(" ");
-  let charIndex = 0;
+  const starts = words.reduce<number[]>((acc, word, i) => {
+    acc.push(i === 0 ? 0 : acc[i - 1] + words[i - 1].length + 1);
+    return acc;
+  }, []);
 
   return (
     <span className={className} aria-label={text} role="text">
       {words.map((word, w) => {
-        const start = charIndex;
-        charIndex += word.length + 1; // +1 keeps stagger rhythm across spaces
+        const start = starts[w];
         return (
           <span key={w} aria-hidden className="inline-block whitespace-nowrap">
             {Array.from(word).map((char, c) => (
