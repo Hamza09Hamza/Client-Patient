@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
 import { generatePassword, verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
+import { syncPatientDocumentsCore } from "@/lib/document-sync";
 import type { ValueFlag } from "@prisma/client";
 
 export interface AdminActionState {
@@ -14,6 +15,7 @@ export interface AdminActionState {
   /** one-time generated credential — shown once, never retrievable again */
   password?: string;
   patientId?: string;
+  documentsSynced?: number;
 }
 
 // ---------- Patients ----------
@@ -145,6 +147,24 @@ export async function viewPatientPassword(
 
   await audit("ADMIN", admin.username, "PASSWORD_VIEWED", patient.patientId);
   return { ok: true, password: patient.password, patientId: patient.patientId };
+}
+
+/** Manually re-pull a patient's document history from the clinic's own system. */
+export async function syncPatientDocuments(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+
+  const patient = await db.patient.findUnique({ where: { id } });
+  if (!patient) return { error: "Patient not found." };
+
+  const result = await syncPatientDocumentsCore(patient.id, patient.patientId, "ADMIN", admin.username);
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/admin/patients/${id}`);
+  return { ok: true, documentsSynced: result.count };
 }
 
 export async function togglePatientStatus(

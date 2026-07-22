@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, Noto_Sans } from "next/font/google";
+import { getLocale } from "@/lib/i18n/locale";
+import { CLINIC_NAME } from "@/lib/config";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -16,19 +18,23 @@ const notoSans = Noto_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Clinic Patient Portal",
-    template: "%s · Clinic Patient Portal",
+    default: `${CLINIC_NAME} — Patient Portal`,
+    template: `%s · ${CLINIC_NAME}`,
   },
   description: "Secure access to your laboratory results.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
-    <html lang="en" className={`${figtree.variable} ${notoSans.variable} h-full antialiased`}>
+    <html
+      lang={locale}
+      className={`${figtree.variable} ${notoSans.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

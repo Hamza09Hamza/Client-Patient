@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { KeyRound, ShieldCheck, Webhook } from "lucide-react";
 import { requireAdmin } from "@/lib/dal";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { FadeIn } from "@/components/rb/fade-in";
 import { AdminPasswordForm } from "./admin-password-form";
@@ -9,13 +11,14 @@ export const metadata: Metadata = { title: "Console settings" };
 
 export default async function AdminSettingsPage() {
   const session = await requireAdmin();
+  const dict = getDictionary(await getLocale()).adminSettings;
 
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">Settings</h1>
+        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
         <p className="mt-1 text-[15px] text-ink-muted">
-          Signed in as <span className="font-semibold text-ink">{session.username}</span>.
+          {t(dict.signedInAs, { username: session.username })}
         </p>
       </FadeIn>
 
@@ -24,11 +27,9 @@ export default async function AdminSettingsPage() {
           <Card className="p-6">
             <div className="flex items-center gap-2.5">
               <KeyRound aria-hidden className="size-5 text-primary" />
-              <h2 className="font-semibold text-ink">Console password</h2>
+              <h2 className="font-semibold text-ink">{dict.consolePasswordTitle}</h2>
             </div>
-            <p className="mt-1 mb-5 text-[13px] text-ink-muted">
-              Use a long, unique password — this account controls every patient record.
-            </p>
+            <p className="mt-1 mb-5 text-[13px] text-ink-muted">{dict.consolePasswordDesc}</p>
             <AdminPasswordForm />
           </Card>
         </FadeIn>
@@ -37,7 +38,7 @@ export default async function AdminSettingsPage() {
           <Card className="p-6">
             <div className="flex items-center gap-2.5">
               <Webhook aria-hidden className="size-5 text-primary" />
-              <h2 className="font-semibold text-ink">Laboratory integration</h2>
+              <h2 className="font-semibold text-ink">{dict.integrationTitle}</h2>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
               External clinic systems can provision patients and push results through the
@@ -63,8 +64,9 @@ export default async function AdminSettingsPage() {
               <div className="rounded-xl border border-border bg-canvas p-3">
                 <dt className="font-semibold text-ink">POST /api/integration/patients</dt>
                 <dd className="mt-0.5 text-ink-muted">
-                  Verifies or creates a patient by ID and returns freshly generated
-                  credentials.
+                  Verifies or creates a patient by ID, returns freshly generated
+                  credentials, and — if the clinic source is configured below — automatically
+                  pulls that patient&apos;s document history.
                 </dd>
               </div>
               <div className="rounded-xl border border-border bg-canvas p-3">
@@ -81,6 +83,27 @@ export default async function AdminSettingsPage() {
                 the audit log.
               </p>
             </div>
+          </Card>
+        </FadeIn>
+
+        <FadeIn delay={0.22} className="lg:col-span-2">
+          <Card className="p-6">
+            <h2 className="font-semibold text-ink">Clinic source (outbound sync)</h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+              To pull each patient&apos;s document history from the clinic&apos;s own system,
+              set{" "}
+              <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
+                CLINIC_SOURCE_BASE_URL
+              </code>{" "}
+              and{" "}
+              <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
+                CLINIC_SOURCE_SHARED_SECRET
+              </code>{" "}
+              on the server. This app then signs a short-lived token and calls out to that
+              system with the patient&apos;s ID whenever a patient is provisioned, and again
+              anytime an admin clicks &quot;Sync from clinic system&quot; on a patient&apos;s
+              page. Full contract: docs/API.md.
+            </p>
           </Card>
         </FadeIn>
       </div>

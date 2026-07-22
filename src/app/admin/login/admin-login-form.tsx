@@ -5,8 +5,9 @@ import { AlertCircle, LogIn } from "lucide-react";
 import { adminLogin, type AuthFormState } from "@/lib/actions/auth";
 import { Field, PasswordField } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-export function AdminLoginForm() {
+export function AdminLoginForm({ dict }: { dict: Dictionary["adminLogin"] }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(adminLogin, {});
 
   return (
@@ -22,17 +23,17 @@ export function AdminLoginForm() {
       )}
 
       <Field
-        label="Username"
+        label={dict.username}
         name="username"
         autoComplete="username"
         autoCapitalize="none"
         spellCheck={false}
         required
       />
-      <PasswordField label="Password" name="password" autoComplete="current-password" required />
+      <PasswordField label={dict.password} name="password" autoComplete="current-password" required />
 
       <Button type="submit" size="lg" loading={pending} className="w-full">
-        Sign in to console
+        {dict.signInButton}
         {!pending && <LogIn aria-hidden className="size-4" />}
       </Button>
     </form>

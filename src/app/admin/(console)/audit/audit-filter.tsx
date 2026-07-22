@@ -3,8 +3,9 @@
 import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SelectField } from "@/components/ui/select";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-export function AuditFilter() {
+export function AuditFilter({ dict }: { dict: Dictionary["adminAudit"] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,10 +25,10 @@ export function AuditFilter() {
         startTransition(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
       }}
     >
-      <option value="">All actors</option>
-      <option value="ADMIN">Admins</option>
-      <option value="PATIENT">Patients</option>
-      <option value="SYSTEM">System</option>
+      <option value="">{dict.allActors}</option>
+      <option value="ADMIN">{dict.admins}</option>
+      <option value="PATIENT">{dict.patients}</option>
+      <option value="SYSTEM">{dict.system}</option>
     </SelectField>
   );
 }

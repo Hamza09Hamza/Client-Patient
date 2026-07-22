@@ -4,9 +4,14 @@ import { requirePatient } from "@/lib/dal";
 import { BrandLockup } from "@/components/brand";
 import { PortalNavLinks } from "@/components/portal/nav";
 import { LogoutButton } from "@/components/logout-button";
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const session = await requirePatient();
+  const locale = await getLocale();
+  const dict = getDictionary(locale);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -16,9 +21,10 @@ export default async function PortalLayout({ children }: { children: ReactNode }
             <BrandLockup compact />
           </Link>
 
-          <PortalNavLinks className="hidden items-center gap-1 md:flex" />
+          <PortalNavLinks dict={dict.portalNav} className="hidden items-center gap-1 md:flex" />
 
           <div className="flex items-center gap-2">
+            <LocaleSwitcher locale={locale} />
             <span className="hidden items-center gap-2.5 rounded-xl bg-canvas px-3 py-1.5 sm:flex">
               <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                 {session.name.charAt(0)}
@@ -30,13 +36,16 @@ export default async function PortalLayout({ children }: { children: ReactNode }
                 <span className="block text-[11px] text-ink-muted">{session.username}</span>
               </span>
             </span>
-            <LogoutButton />
+            <LogoutButton label={dict.common.signOut} />
           </div>
         </div>
 
         {/* Mobile nav */}
         <div className="border-t border-border md:hidden">
-          <PortalNavLinks className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 py-2" />
+          <PortalNavLinks
+            dict={dict.portalNav}
+            className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 py-2"
+          />
         </div>
       </header>
 
@@ -44,7 +53,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
       <footer className="no-print border-t border-border py-5">
         <p className="mx-auto max-w-6xl px-4 text-center text-[13px] text-ink-faint sm:px-6">
-          Results are provided for information. Always discuss them with your physician.
+          {dict.portalNav.footerDisclaimer}
         </p>
       </footer>
     </div>

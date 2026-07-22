@@ -3,6 +3,8 @@ import { SearchX } from "lucide-react";
 import type { Prisma, ResultStatus } from "@prisma/client";
 import { requirePatient } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -38,6 +40,7 @@ export default async function ResultsPage({
 }) {
   const session = await requirePatient();
   const params = await searchParams;
+  const dict = getDictionary(await getLocale()).portalResults;
 
   const where: Prisma.LabResultWhereInput = { patientDbId: session.sub };
 
@@ -97,25 +100,21 @@ export default async function ResultsPage({
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">My results</h1>
+        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
         <p className="mt-1 text-[15px] text-ink-muted">
-          {totalCount} report{totalCount === 1 ? "" : "s"} — search, filter, and open any of
-          them to view details, print, or download.
+          {t(totalCount === 1 ? dict.reportCount : dict.reportCountPlural, { count: totalCount })} —{" "}
+          {dict.subtitle}
         </p>
       </FadeIn>
 
       <FadeIn delay={0.08}>
-        <FilterBar categories={categoryRows.map((c) => c.category)} />
+        <FilterBar dict={dict} categories={categoryRows.map((c) => c.category)} />
       </FadeIn>
 
       <FadeIn delay={0.15}>
         <Card>
           {results.length === 0 ? (
-            <EmptyState
-              icon={SearchX}
-              title="No reports match"
-              description="Try widening the date range or clearing some filters."
-            />
+            <EmptyState icon={SearchX} title={dict.emptyTitle} description={dict.emptyDesc} />
           ) : (
             <div className="divide-y divide-border/70 p-2">
               {results.map((r) => (

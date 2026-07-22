@@ -5,52 +5,45 @@ import { Aurora } from "@/components/rb/aurora";
 import { SplitText } from "@/components/rb/split-text";
 import { FadeIn } from "@/components/rb/fade-in";
 import { BrandLockup, BrandMark } from "@/components/brand";
+import { CLINIC_NAME } from "@/lib/config";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-const TRUST_POINTS = [
-  {
-    Icon: ShieldCheck,
-    title: "Private by design",
-    text: "Your results are encrypted and visible only to you and your clinic.",
-  },
-  {
-    Icon: FileText,
-    title: "Complete history",
-    text: "Every report the laboratory has issued for you, in one place.",
-  },
-  {
-    Icon: Clock3,
-    title: "Available anytime",
-    text: "Check results the moment they are validated — no waiting room.",
-  },
-];
+export default async function LoginPage() {
+  const locale = await getLocale();
+  const dict = getDictionary(locale);
 
-export default function LoginPage() {
+  const TRUST_POINTS = [
+    { Icon: ShieldCheck, title: dict.login.trust1Title, text: dict.login.trust1Text },
+    { Icon: FileText, title: dict.login.trust2Title, text: dict.login.trust2Text },
+    { Icon: Clock3, title: dict.login.trust3Title, text: dict.login.trust3Text },
+  ];
+
   return (
     <main className="flex min-h-dvh">
       {/* Brand panel */}
       <section className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-primary-deep p-12 text-white lg:flex">
         <Aurora />
-        <FadeIn className="relative">
+        <FadeIn className="relative flex items-center justify-between">
           <span className="flex items-center gap-2.5">
             <BrandMark className="size-10 bg-white/10 backdrop-blur" />
-            <span className="text-lg font-semibold">Meridian Clinic</span>
+            <span className="text-lg font-semibold">{CLINIC_NAME}</span>
           </span>
+          <LocaleSwitcher locale={locale} variant="light" />
         </FadeIn>
 
         <div className="relative max-w-lg">
           <h1 className="text-4xl font-bold leading-[1.15] tracking-tight xl:text-5xl">
-            <SplitText text="Your results," delay={0.15} />
+            <SplitText text={dict.login.heroLine1} delay={0.15} />
             <br />
-            <SplitText text="whenever you need them." delay={0.5} />
+            <SplitText text={dict.login.heroLine2} delay={0.5} />
           </h1>
           <FadeIn delay={1.15}>
-            <p className="mt-5 text-lg leading-relaxed text-cyan-100/90">
-              Secure access to your laboratory reports from the clinic — view, download,
-              and share them with any physician.
-            </p>
+            <p className="mt-5 text-lg leading-relaxed text-cyan-100/90">{dict.login.heroSubtitle}</p>
           </FadeIn>
         </div>
 
@@ -72,30 +65,32 @@ export default function LoginPage() {
       {/* Form panel */}
       <section className="relative flex w-full flex-col items-center justify-center px-5 py-10 lg:w-1/2">
         <div className="w-full max-w-md">
-          <FadeIn className="mb-10 lg:hidden">
-            <BrandLockup />
+          <FadeIn className="mb-10 flex items-center justify-between lg:hidden">
+            <BrandLockup subtitle={dict.common.laboratoryPortal} />
+            <LocaleSwitcher locale={locale} />
+          </FadeIn>
+          <FadeIn className="mb-8 hidden justify-end lg:flex">
+            <LocaleSwitcher locale={locale} />
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <h2 className="text-[28px] font-bold tracking-tight text-ink">Welcome back</h2>
-            <p className="mt-1.5 mb-8 text-[15px] text-ink-muted">
-              Sign in with the credentials provided by the clinic.
-            </p>
+            <h2 className="text-[28px] font-bold tracking-tight text-ink">{dict.login.welcomeBack}</h2>
+            <p className="mt-1.5 mb-8 text-[15px] text-ink-muted">{dict.login.subtitle}</p>
           </FadeIn>
 
           <FadeIn delay={0.2}>
-            <LoginForm />
+            <LoginForm dict={dict.login} />
           </FadeIn>
         </div>
 
         <FadeIn delay={0.4} className="absolute bottom-6 px-5 text-center">
           <p className="text-[13px] text-ink-faint">
-            Clinic staff?{" "}
+            {dict.login.staffLinkText}{" "}
             <Link
               href="/admin/login"
               className="font-medium text-ink-muted underline-offset-4 hover:text-primary hover:underline"
             >
-              Go to the administration console
+              {dict.login.staffLink}
             </Link>
           </p>
         </FadeIn>

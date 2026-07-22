@@ -6,8 +6,9 @@ import { AlertCircle, ArrowRight } from "lucide-react";
 import { patientLogin, type AuthFormState } from "@/lib/actions/auth";
 import { Field, PasswordField } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-export function LoginForm() {
+export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(patientLogin, {});
 
   return (
@@ -23,35 +24,30 @@ export function LoginForm() {
       )}
 
       <Field
-        label="Patient ID"
+        label={dict.patientIdLabel}
         name="username"
-        placeholder="e.g. PAT-2026-0001"
+        placeholder={dict.patientIdPlaceholder}
         autoComplete="username"
         autoCapitalize="none"
         spellCheck={false}
         required
-        hint="The identifier printed on your clinic card or lab receipt."
+        hint={dict.patientIdHint}
       />
 
-      <PasswordField
-        label="Password"
-        name="password"
-        autoComplete="current-password"
-        required
-      />
+      <PasswordField label={dict.passwordLabel} name="password" autoComplete="current-password" required />
 
       <Button type="submit" size="lg" loading={pending} className="w-full">
-        Sign in
+        {dict.signInButton}
         {!pending && <ArrowRight aria-hidden className="size-4" />}
       </Button>
 
       <p className="text-center text-sm text-ink-muted">
-        Lost your password?{" "}
+        {dict.forgotPasswordText}{" "}
         <Link
           href="/forgot-password"
           className="font-semibold text-primary underline-offset-4 hover:underline"
         >
-          Request a reset
+          {dict.forgotPasswordLink}
         </Link>
       </p>
     </form>

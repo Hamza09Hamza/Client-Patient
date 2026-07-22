@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, RotateCcw, Search } from "lucide-react";
 import { SelectField } from "@/components/ui/select";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 interface FilterBarProps {
+  dict: Dictionary["portalResults"];
   categories: string[];
 }
 
-export function FilterBar({ categories }: FilterBarProps) {
+export function FilterBar({ dict, categories }: FilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -66,8 +68,8 @@ export function FilterBar({ categories }: FilterBarProps) {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by test name, category, or report number"
-          aria-label="Search results"
+          placeholder={dict.searchPlaceholder}
+          aria-label={dict.searchPlaceholder}
           className="h-12 w-full rounded-xl border border-border-strong bg-surface pl-10 pr-10 text-[15px] text-ink placeholder:text-ink-faint transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15"
         />
         {isPending && (
@@ -85,7 +87,7 @@ export function FilterBar({ categories }: FilterBarProps) {
           value={searchParams.get("category") ?? ""}
           onChange={(e) => setParams({ category: e.target.value })}
         >
-          <option value="">All categories</option>
+          <option value="">{dict.allCategories}</option>
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -99,10 +101,10 @@ export function FilterBar({ categories }: FilterBarProps) {
           value={searchParams.get("status") ?? ""}
           onChange={(e) => setParams({ status: e.target.value })}
         >
-          <option value="">Any status</option>
-          <option value="PENDING">In progress</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="REVIEWED">Reviewed</option>
+          <option value="">{dict.anyStatus}</option>
+          <option value="PENDING">{dict.statusPending}</option>
+          <option value="COMPLETED">{dict.statusCompleted}</option>
+          <option value="REVIEWED">{dict.statusReviewed}</option>
         </SelectField>
 
         <div>
@@ -136,10 +138,10 @@ export function FilterBar({ categories }: FilterBarProps) {
           value={searchParams.get("sort") ?? "newest"}
           onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}
         >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="name">Test name A–Z</option>
-          <option value="category">Category A–Z</option>
+          <option value="newest">{dict.sortNewest}</option>
+          <option value="oldest">{dict.sortOldest}</option>
+          <option value="name">{dict.sortNameAsc}</option>
+          <option value="category">{dict.sortCategoryAsc}</option>
         </SelectField>
 
         <button
@@ -152,7 +154,7 @@ export function FilterBar({ categories }: FilterBarProps) {
           className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-border-strong bg-surface text-sm font-medium text-ink-muted transition-colors duration-200 hover:border-primary/40 hover:text-primary disabled:opacity-40"
         >
           <RotateCcw aria-hidden className="size-3.5" />
-          Reset
+          {dict.reset}
         </button>
       </div>
     </div>

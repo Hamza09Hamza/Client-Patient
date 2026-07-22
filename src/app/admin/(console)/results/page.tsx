@@ -5,6 +5,8 @@ import type { Prisma, ResultStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -31,6 +33,8 @@ export default async function AdminResultsPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
+  const fullDict = getDictionary(await getLocale());
+  const dict = fullDict.adminResults;
 
   const where: Prisma.LabResultWhereInput = {};
   if (params.q) {
@@ -70,34 +74,30 @@ export default async function AdminResultsPage({
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">Lab results</h1>
+        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
         <p className="mt-1 text-[15px] text-ink-muted">
-          {totalCount} report{totalCount === 1 ? "" : "s"} on file across all patients.
+          {totalCount} report{totalCount === 1 ? "" : "s"} {dict.subtitle}
         </p>
       </FadeIn>
 
       <FadeIn delay={0.08}>
-        <ResultsToolbar />
+        <ResultsToolbar dict={fullDict} />
       </FadeIn>
 
       <FadeIn delay={0.15}>
         <Card>
           {results.length === 0 ? (
-            <EmptyState
-              icon={FlaskConical}
-              title="No reports found"
-              description="Adjust the search, or record a new result with the button above."
-            />
+            <EmptyState icon={FlaskConical} title={dict.emptyTitle} description={dict.emptyDesc} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-175 text-left">
                 <thead>
                   <tr className="border-b border-border text-[12px] uppercase tracking-wider text-ink-muted">
-                    <th scope="col" className="px-5 py-3.5 font-semibold">Report</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Patient</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Category</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Collected</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Status</th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold">{dict.colReport}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colPatient}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colCategory}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colCollected}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colStatus}</th>
                     <th scope="col" className="px-3 py-3.5">
                       <span className="sr-only">Actions</span>
                     </th>

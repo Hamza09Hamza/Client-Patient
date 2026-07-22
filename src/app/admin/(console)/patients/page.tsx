@@ -5,6 +5,8 @@ import type { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDate, formatRelative } from "@/lib/format";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -30,6 +32,8 @@ export default async function PatientsPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
+  const fullDict = getDictionary(await getLocale());
+  const dict = fullDict.adminPatients;
 
   const where: Prisma.PatientWhereInput = {};
   if (params.q) {
@@ -67,36 +71,32 @@ export default async function PatientsPage({
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">Patients</h1>
+        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
         <p className="mt-1 text-[15px] text-ink-muted">
-          {totalCount} account{totalCount === 1 ? "" : "s"} — create new ones, review their
-          reports, and manage access.
+          {totalCount} account{totalCount === 1 ? "" : "s"} — {dict.subtitle}
         </p>
       </FadeIn>
 
       <FadeIn delay={0.08}>
-        <PatientsToolbar />
+        <PatientsToolbar dict={fullDict} />
       </FadeIn>
 
       <FadeIn delay={0.15}>
         <Card>
           {patients.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title="No patients found"
-              description="Adjust the search, or register a new patient with the button above."
-            />
+            <EmptyState icon={Users} title={dict.emptyTitle} description={dict.emptyDesc} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-175 text-left">
+              <table className="w-full min-w-200 text-left">
                 <thead>
                   <tr className="border-b border-border text-[12px] uppercase tracking-wider text-ink-muted">
-                    <th scope="col" className="px-5 py-3.5 font-semibold">Patient</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Contact</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Status</th>
-                    <th scope="col" className="px-4 py-3.5 text-right font-semibold">Reports</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Last sign-in</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Registered</th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold">{dict.colPatient}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colContact}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colStatus}</th>
+                    <th scope="col" className="px-4 py-3.5 text-right font-semibold">{dict.colReports}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colLastSignIn}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colLastDevice}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colRegistered}</th>
                     <th scope="col" className="px-3 py-3.5">
                       <span className="sr-only">Open</span>
                     </th>
@@ -126,7 +126,10 @@ export default async function PatientsPage({
                         {p._count.results}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-ink-muted">
-                        {p.lastLoginAt ? formatRelative(p.lastLoginAt) : "never"}
+                        {p.lastLoginAt ? formatRelative(p.lastLoginAt) : dict.never}
+                      </td>
+                      <td className="max-w-48 truncate px-4 py-3.5 text-[13px] text-ink-muted">
+                        {p.lastLoginDevice ?? "—"}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-ink-muted">
                         {formatDate(p.createdAt)}

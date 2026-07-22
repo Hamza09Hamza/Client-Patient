@@ -4,6 +4,8 @@ import { AlertTriangle, Inbox, KeyRound, Mail, UserRound } from "lucide-react";
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDateTime, formatRelative } from "@/lib/format";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FadeIn } from "@/components/rb/fade-in";
@@ -13,6 +15,8 @@ export const metadata: Metadata = { title: "Reset requests" };
 
 export default async function ResetRequestsPage() {
   await requireAdmin();
+  const fullDict = getDictionary(await getLocale());
+  const dict = fullDict.adminRequests;
 
   const [pending, reviewed] = await Promise.all([
     db.passwordResetRequest.findMany({
@@ -32,22 +36,15 @@ export default async function ResetRequestsPage() {
     <div className="space-y-8">
       <FadeIn>
         <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">
-          Password reset requests
+          {dict.title}
         </h1>
-        <p className="mt-1 text-[15px] text-ink-muted">
-          Verify each requester&apos;s ID document before approving — approval generates new
-          credentials and invalidates the old password.
-        </p>
+        <p className="mt-1 text-[15px] text-ink-muted">{dict.subtitle}</p>
       </FadeIn>
 
       {pending.length === 0 ? (
         <FadeIn delay={0.08}>
           <Card>
-            <EmptyState
-              icon={Inbox}
-              title="Nothing waiting for review"
-              description="New requests from the patient portal will show up here."
-            />
+            <EmptyState icon={Inbox} title={dict.emptyTitle} description={dict.emptyDesc} />
           </Card>
         </FadeIn>
       ) : (
@@ -69,7 +66,7 @@ export default async function ResetRequestsPage() {
                     ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2.5 py-1 text-xs font-semibold text-danger">
                         <AlertTriangle aria-hidden className="size-3.5" />
-                        No matching patient
+                        {dict.noMatch}
                       </span>
                     )}
                   </div>
@@ -113,6 +110,7 @@ export default async function ResetRequestsPage() {
                     </div>
                     <div className="flex gap-2.5 pt-1">
                       <ApproveRequestButton
+                        dict={fullDict}
                         request={{
                           id: request.id,
                           submittedPatientId: request.submittedPatientId,
@@ -121,6 +119,7 @@ export default async function ResetRequestsPage() {
                         }}
                       />
                       <DenyRequestButton
+                        dict={dict}
                         request={{
                           id: request.id,
                           submittedPatientId: request.submittedPatientId,
@@ -141,17 +140,17 @@ export default async function ResetRequestsPage() {
         <FadeIn delay={0.2}>
           <Card>
             <div className="border-b border-border px-5 py-4">
-              <h2 className="font-semibold text-ink">Review history</h2>
+              <h2 className="font-semibold text-ink">{dict.reviewHistory}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-150 text-left">
                 <thead>
                   <tr className="border-b border-border text-[12px] uppercase tracking-wider text-ink-muted">
-                    <th scope="col" className="px-5 py-3 font-semibold">Patient ID</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Outcome</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">Reviewed by</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">When</th>
-                    <th scope="col" className="px-5 py-3 font-semibold">Note</th>
+                    <th scope="col" className="px-5 py-3 font-semibold">{dict.colPatientId}</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">{dict.colOutcome}</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">{dict.colReviewedBy}</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">{dict.colWhen}</th>
+                    <th scope="col" className="px-5 py-3 font-semibold">{dict.colNote}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
@@ -163,11 +162,11 @@ export default async function ResetRequestsPage() {
                       <td className="px-4 py-3">
                         {r.status === "APPROVED" ? (
                           <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-strong">
-                            Approved
+                            {dict.approved}
                           </span>
                         ) : (
                           <span className="rounded-full bg-danger-soft px-2.5 py-1 text-xs font-semibold text-danger">
-                            Denied
+                            {dict.denied}
                           </span>
                         )}
                       </td>

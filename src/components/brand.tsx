@@ -1,4 +1,5 @@
 import { Activity } from "lucide-react";
+import { CLINIC_NAME } from "@/lib/config";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
@@ -10,17 +11,17 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
-export function BrandLockup({ compact = false }: { compact?: boolean }) {
+export function BrandLockup({ compact = false, subtitle }: { compact?: boolean; subtitle?: string }) {
   return (
     <span className="flex items-center gap-2.5">
       <BrandMark className={compact ? "size-8" : "size-10"} />
       <span className="leading-tight">
         <span className={`block font-semibold text-ink ${compact ? "text-[15px]" : "text-lg"}`}>
-          Meridian Clinic
+          {CLINIC_NAME}
         </span>
-        {!compact && (
+        {!compact && subtitle && (
           <span className="block text-xs font-medium tracking-wide text-ink-muted">
-            Laboratory Portal
+            {subtitle}
           </span>
         )}
       </span>

@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { TextareaField } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { CredentialReveal } from "@/components/admin/credential-reveal";
+import { CLINIC_NAME } from "@/lib/config";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 interface RequestSummary {
   id: string;
@@ -33,13 +35,14 @@ function ErrorNote({ message }: { message?: string }) {
   );
 }
 
-export function ApproveRequestButton({ request }: { request: RequestSummary }) {
+export function ApproveRequestButton({ request, dict }: { request: RequestSummary; dict: Dictionary }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(
     approveResetRequest,
     {},
   );
+  const t = dict.adminRequests;
 
   function close() {
     setOpen(false);
@@ -49,7 +52,7 @@ export function ApproveRequestButton({ request }: { request: RequestSummary }) {
   const mailto =
     state.password && state.patientId
       ? `mailto:${request.email}?subject=${encodeURIComponent("Your new clinic portal password")}&body=${encodeURIComponent(
-          `Hello,\n\nYour password reset request has been approved.\n\nPatient ID: ${state.patientId}\nNew password: ${state.password}\n\nSign in at the patient portal and consider changing this password in Settings.\n\nMeridian Clinic`,
+          `Hello,\n\nYour password reset request has been approved.\n\nPatient ID: ${state.patientId}\nNew password: ${state.password}\n\nSign in at the patient portal and consider changing this password in Settings.\n\n${CLINIC_NAME}`,
         )}`
       : null;
 
@@ -57,7 +60,7 @@ export function ApproveRequestButton({ request }: { request: RequestSummary }) {
     <>
       <Button variant="accent" size="sm" onClick={() => setOpen(true)} disabled={!request.patientName}>
         <Check aria-hidden className="size-4" />
-        Approve
+        {t.approve}
       </Button>
       <Modal
         open={open}
@@ -66,7 +69,7 @@ export function ApproveRequestButton({ request }: { request: RequestSummary }) {
       >
         {state.ok && state.password && state.patientId ? (
           <div className="space-y-5">
-            <CredentialReveal patientId={state.patientId} password={state.password} />
+            <CredentialReveal patientId={state.patientId} password={state.password} dict={dict.credentials} />
             {mailto && (
               <a
                 href={mailto}
@@ -108,7 +111,7 @@ export function ApproveRequestButton({ request }: { request: RequestSummary }) {
   );
 }
 
-export function DenyRequestButton({ request }: { request: RequestSummary }) {
+export function DenyRequestButton({ request, dict }: { request: RequestSummary; dict: Dictionary["adminRequests"] }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(
@@ -125,7 +128,7 @@ export function DenyRequestButton({ request }: { request: RequestSummary }) {
     <>
       <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
         <X aria-hidden className="size-4" />
-        Deny
+        {dict.deny}
       </Button>
       <Modal open={open} onClose={close} title="Deny this request?">
         <form action={action} className="space-y-5" noValidate>

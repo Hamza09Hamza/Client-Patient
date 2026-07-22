@@ -11,27 +11,29 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-
-const LINKS: { href: string; label: string; Icon: LucideIcon; exact?: boolean }[] = [
-  { href: "/admin", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-  { href: "/admin/patients", label: "Patients", Icon: Users },
-  { href: "/admin/results", label: "Lab results", Icon: FlaskConical },
-  { href: "/admin/requests", label: "Reset requests", Icon: KeyRound },
-  { href: "/admin/audit", label: "Audit log", Icon: ScrollText },
-  { href: "/admin/settings", label: "Settings", Icon: Settings },
-];
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 export function AdminNavLinks({
+  dict,
   pendingRequests,
   className,
 }: {
+  dict: Dictionary["adminNav"];
   pendingRequests: number;
   className?: string;
 }) {
   const pathname = usePathname();
+  const links: { href: string; label: string; Icon: LucideIcon; exact?: boolean }[] = [
+    { href: "/admin", label: dict.dashboard, Icon: LayoutDashboard, exact: true },
+    { href: "/admin/patients", label: dict.patients, Icon: Users },
+    { href: "/admin/results", label: dict.labResults, Icon: FlaskConical },
+    { href: "/admin/requests", label: dict.resetRequests, Icon: KeyRound },
+    { href: "/admin/audit", label: dict.auditLog, Icon: ScrollText },
+    { href: "/admin/settings", label: dict.settings, Icon: Settings },
+  ];
   return (
     <div className={className}>
-      {LINKS.map(({ href, label, Icon, exact }) => {
+      {links.map(({ href, label, Icon, exact }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link

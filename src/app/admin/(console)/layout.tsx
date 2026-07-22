@@ -4,12 +4,18 @@ import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { BrandMark } from "@/components/brand";
 import { AdminNavLinks } from "@/components/admin/nav";
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
 import { LogOut } from "lucide-react";
 import { logout } from "@/lib/actions/auth";
+import { CLINIC_NAME } from "@/lib/config";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export default async function AdminConsoleLayout({ children }: { children: ReactNode }) {
   const session = await requireAdmin();
   const pendingRequests = await db.passwordResetRequest.count({ where: { status: "PENDING" } });
+  const locale = await getLocale();
+  const dict = getDictionary(locale);
 
   return (
     <div className="flex min-h-dvh">
@@ -18,16 +24,17 @@ export default async function AdminConsoleLayout({ children }: { children: React
         <Link href="/admin" className="flex items-center gap-2.5 px-5 py-6" aria-label="Admin dashboard">
           <BrandMark className="size-9 bg-white/10 backdrop-blur" />
           <span className="leading-tight">
-            <span className="block text-[15px] font-semibold text-white">Meridian Clinic</span>
+            <span className="block text-[15px] font-semibold text-white">{CLINIC_NAME}</span>
             <span className="block text-[11px] font-medium tracking-wide text-cyan-100/70">
-              Administration
+              {dict.common.administration}
             </span>
           </span>
         </Link>
 
-        <AdminNavLinks pendingRequests={pendingRequests} className="flex-1 space-y-1 px-3" />
+        <AdminNavLinks dict={dict.adminNav} pendingRequests={pendingRequests} className="flex-1 space-y-1 px-3" />
 
-        <div className="border-t border-white/10 p-3">
+        <div className="space-y-2 border-t border-white/10 p-3">
+          <LocaleSwitcher locale={locale} variant="light" />
           <div className="flex items-center gap-2.5 rounded-xl px-2.5 py-2">
             <span className="flex size-8 items-center justify-center rounded-full bg-cyan-400/20 text-xs font-bold text-cyan-100">
               {session.name.charAt(0)}
@@ -41,7 +48,7 @@ export default async function AdminConsoleLayout({ children }: { children: React
             <form action={logout}>
               <button
                 type="submit"
-                aria-label="Sign out"
+                aria-label={dict.common.signOut}
                 className="flex size-9 items-center justify-center rounded-lg text-cyan-100/60 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <LogOut aria-hidden className="size-4.5" />
@@ -57,19 +64,23 @@ export default async function AdminConsoleLayout({ children }: { children: React
           <div className="flex h-14 items-center justify-between px-4">
             <Link href="/admin" className="flex items-center gap-2" aria-label="Admin dashboard">
               <BrandMark className="size-8 bg-white/10" />
-              <span className="text-sm font-semibold text-white">Administration</span>
+              <span className="text-sm font-semibold text-white">{dict.common.administration}</span>
             </Link>
-            <form action={logout}>
-              <button
-                type="submit"
-                aria-label="Sign out"
-                className="flex size-10 items-center justify-center rounded-lg text-cyan-100/70 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <LogOut aria-hidden className="size-4.5" />
-              </button>
-            </form>
+            <div className="flex items-center gap-2">
+              <LocaleSwitcher locale={locale} variant="light" />
+              <form action={logout}>
+                <button
+                  type="submit"
+                  aria-label={dict.common.signOut}
+                  className="flex size-10 items-center justify-center rounded-lg text-cyan-100/70 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <LogOut aria-hidden className="size-4.5" />
+                </button>
+              </form>
+            </div>
           </div>
           <AdminNavLinks
+            dict={dict.adminNav}
             pendingRequests={pendingRequests}
             className="flex items-center gap-1 overflow-x-auto px-3 pb-2"
           />

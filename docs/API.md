@@ -80,7 +80,8 @@ Content-Type: application/json
   "patientId": "PAT-2026-0200",
   "fullName": "Jane Doe",
   "password": "Kt7m-Rx4q-Wn9d",
-  "created": true
+  "created": true,
+  "documentsSynced": 12
 }
 ```
 
@@ -91,7 +92,8 @@ Content-Type: application/json
   "patientId": "PAT-2026-0200",
   "fullName": "Jane Doe",
   "password": "vwQ4-4tKu-4zAv",
-  "created": false
+  "created": false,
+  "documentsSynced": 12
 }
 ```
 
@@ -99,6 +101,14 @@ Content-Type: application/json
 immediately.** It is also retrievable later by an admin from the console (Patients →
 select patient → *View password*), since this system stores credentials in
 plaintext by design — see the Security note in the main [README](../README.md).
+
+**`documentsSynced`** appears only when `CLINIC_SOURCE_BASE_URL` /
+`CLINIC_SOURCE_SHARED_SECRET` are configured on this server — it's the number of
+documents just pulled from your system via the [clinic source
+contract](#clinic-source-contract-server-a) below. If that pull fails,
+`documentSyncError` carries the reason instead — the failure never blocks
+provisioning; credentials are still returned and an admin can retry with **Sync
+from clinic system** in the console.
 
 ### Error responses
 
@@ -225,3 +235,101 @@ async function provisionPatient(patient) {
   return res.json(); // { patientId, fullName, password, created }
 }
 ```
+
+---
+
+## Clinic source contract (SERVER A)
+
+This section is the flip side of the API above: instead of the clinic's system calling
+this app, **this app calls out to the clinic's system** to pull a patient's document
+history. Two systems are involved:
+
+- **SERVER B** — this app, the patient portal. Provisions patients and generates
+  passwords (the API documented above).
+- **SERVER A** — the clinic's own internal system, which is the source of truth for lab
+  report PDFs. Implementing the endpoint below is what makes document sync work.
+
+### When SERVER B calls SERVER A
+
+1. A patient is provisioned or re-credentialed via `POST /api/integration/patients`
+   (called by SERVER A, as documented above), **or** an admin clicks **Sync from clinic
+   system** on a patient's page in the console.
+2. SERVER B mints a short-lived (5 minute) signed token for that specific patient and
+   calls out to SERVER A:
+
+   ```http
+   POST {CLINIC_SOURCE_BASE_URL}/patients/{patientId}/documents
+   Content-Type: application/json
+
+   { "patientId": "PAT-2026-0200", "token": "<signed JWT>" }
+   ```
+
+   The token is an HS256 JWT signed with the shared secret
+   `CLINIC_SOURCE_SHARED_SECRET` (configured identically on both sides — coordinate
+   this value with whoever implements the SERVER A endpoint), containing
+   `{ patientId, purpose: "document-sync", iat, exp }`. Verify the signature, that
+   `purpose` is `"document-sync"`, that it hasn't expired, and that `patientId` in the
+   token matches the `patientId` in the body before trusting the request.
+
+3. SERVER A responds with that patient's document history:
+
+   ```json
+   {
+     "documents": [
+       {
+         "externalId": "A-88213",
+         "title": "Complete Blood Count",
+         "category": "Hematology",
+         "collectedAt": "2026-06-14",
+         "link": "https://files.clinic.local/reports/A-88213.pdf",
+         "physician": "Dr. S. Haddad",
+         "notes": "optional"
+       }
+     ]
+   }
+   ```
+
+   | Field | Required | Notes |
+   |---|---|---|
+   | `externalId` | yes | SERVER A's own id for this document. SERVER B upserts on `(patient, externalId)`, so it's always safe to resend the same document again — nothing is duplicated. |
+   | `title` | yes | Shown as the report name in the portal. |
+   | `category` | no | Defaults to "Clinic report" if omitted. |
+   | `collectedAt` | yes | ISO date or datetime. |
+   | `link` | yes | See below — **this is the part to get right.** |
+   | `physician` | no | |
+   | `notes` | no | |
+
+4. SERVER B stores each document as a report in the patient's history (alongside any
+   manually entered results) and shows the patient a **"View report" / "Open report"**
+   button pointing at `link`.
+
+### About `link` — URL vs. local path
+
+**Current behavior, by explicit product decision:** SERVER B stores whatever string
+SERVER A sends in `link` and does nothing clever with it — no fetching, no caching, no
+validation beyond checking whether it happens to look like an `http(s)://` URL:
+
+- If it **is** a valid `http(s)://` URL, the patient portal shows an "Open report"
+  button that opens it directly in a new tab. SERVER A must serve that URL itself
+  (with whatever auth/access control it needs) — SERVER B does not proxy or download it.
+- If it is **not** a valid URL — e.g. a local filesystem path like
+  `C:\Reports\2026\A-88213.pdf` — the portal shows the report as on file but not yet
+  openable online, and displays the raw reference so clinic staff can locate it
+  manually if needed. SERVER B makes no attempt to read from that path.
+
+This was a deliberate scope decision: SERVER A and SERVER B are expected to run as
+separate services, so a local Windows path from SERVER A's machine has no meaning to
+SERVER B or to a patient's browser. If SERVER A and SERVER B end up co-located on the
+same host with a shared filesystem, or SERVER A adds a proper file-serving endpoint,
+extending this is a contained change in two places: `isOpenableUrl()` in
+`src/app/portal/results/[id]/page.tsx` (what counts as "openable") and
+`fetchPatientDocuments()` in `src/lib/clinic-source.ts` (how the document index is
+fetched) — nothing else in the app needs to change.
+
+### Error handling
+
+If SERVER A is unreachable, times out (15s), returns a non-2xx status, or responds with
+a body that doesn't have a `documents` array, the sync is treated as failed:
+provisioning still succeeds (the patient gets their password regardless), the failure
+reason is returned in `documentSyncError`, and nothing is written for that patient. An
+admin can retry any time via **Sync from clinic system**.

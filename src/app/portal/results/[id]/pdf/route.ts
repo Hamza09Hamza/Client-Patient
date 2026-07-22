@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { CLINIC_NAME } from "@/lib/config";
 
 const TEAL = rgb(8 / 255, 145 / 255, 178 / 255);
 const TEAL_DEEP = rgb(21 / 255, 94 / 255, 117 / 255);
@@ -92,7 +93,7 @@ export async function GET(
 
   // ---- Header band
   page.drawRectangle({ x: 0, y: PAGE_H - 110, width: PAGE_W, height: 110, color: TEAL_DEEP });
-  text(page, "Meridian Clinic", MARGIN, PAGE_H - 52, 22, bold, rgb(1, 1, 1));
+  text(page, CLINIC_NAME, MARGIN, PAGE_H - 52, 22, bold, rgb(1, 1, 1));
   text(page, "Laboratory Report", MARGIN, PAGE_H - 72, 12, font, rgb(0.8, 0.95, 1));
   rightText(page, result.reference, PAGE_W - MARGIN, PAGE_H - 52, 13, bold, rgb(1, 1, 1));
   rightText(
@@ -225,7 +226,7 @@ export async function GET(
   );
   text(
     page,
-    `Generated for ${result.patient.fullName} on ${formatDateTime(new Date())} - Meridian Clinic Laboratory Portal`,
+    `Generated for ${result.patient.fullName} on ${formatDateTime(new Date())} - ${CLINIC_NAME} Laboratory Portal`,
     MARGIN,
     footerY - 4,
     7.5,

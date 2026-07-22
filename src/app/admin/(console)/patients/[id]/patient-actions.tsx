@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Eye, KeyRound, Pencil, ShieldOff, ShieldCheck } from "lucide-react";
+import { AlertCircle, Eye, KeyRound, Pencil, RefreshCw, ShieldOff, ShieldCheck } from "lucide-react";
 import {
   regeneratePatientPassword,
+  syncPatientDocuments,
   togglePatientStatus,
   updatePatient,
   viewPatientPassword,
@@ -15,6 +16,7 @@ import { Field } from "@/components/ui/field";
 import { SelectField } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { CredentialReveal } from "@/components/admin/credential-reveal";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 interface PatientData {
   id: string;
@@ -40,7 +42,7 @@ function ErrorNote({ message }: { message?: string }) {
   );
 }
 
-export function EditPatientButton({ patient }: { patient: PatientData }) {
+export function EditPatientButton({ patient, dict }: { patient: PatientData; dict: Dictionary["adminPatientDetail"] }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(updatePatient, {});
@@ -54,9 +56,9 @@ export function EditPatientButton({ patient }: { patient: PatientData }) {
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>
         <Pencil aria-hidden className="size-4" />
-        Edit details
+        {dict.editDetails}
       </Button>
-      <Modal open={open} onClose={close} title={`Edit ${patient.fullName}`}>
+      <Modal open={open} onClose={close} title={`${dict.editDetails} — ${patient.fullName}`}>
         <form action={action} className="space-y-4" noValidate>
           <input type="hidden" name="id" value={patient.id} />
           <ErrorNote message={state.error} />
@@ -98,7 +100,15 @@ export function EditPatientButton({ patient }: { patient: PatientData }) {
   );
 }
 
-export function ViewPasswordButton({ patient }: { patient: PatientData }) {
+export function ViewPasswordButton({
+  patient,
+  dict,
+  credentialsDict,
+}: {
+  patient: PatientData;
+  dict: Dictionary["adminPatientDetail"];
+  credentialsDict: Dictionary["credentials"];
+}) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<AdminActionState, FormData>(
     viewPatientPassword,
@@ -113,12 +123,17 @@ export function ViewPasswordButton({ patient }: { patient: PatientData }) {
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>
         <Eye aria-hidden className="size-4" />
-        View password
+        {dict.viewPassword}
       </Button>
-      <Modal open={open} onClose={close} title="Patient credentials">
+      <Modal open={open} onClose={close} title={dict.viewPassword}>
         {state.ok && state.password && state.patientId ? (
           <div className="space-y-5">
-            <CredentialReveal patientId={state.patientId} password={state.password} mode="viewed" />
+            <CredentialReveal
+              patientId={state.patientId}
+              password={state.password}
+              mode="viewed"
+              dict={credentialsDict}
+            />
             <Button onClick={close} variant="secondary" className="w-full">
               Done
             </Button>
@@ -138,7 +153,7 @@ export function ViewPasswordButton({ patient }: { patient: PatientData }) {
               </Button>
               <Button type="submit" loading={pending}>
                 <Eye aria-hidden className="size-4" />
-                Reveal password
+                {dict.viewPassword}
               </Button>
             </div>
           </form>
@@ -148,7 +163,15 @@ export function ViewPasswordButton({ patient }: { patient: PatientData }) {
   );
 }
 
-export function RegeneratePasswordButton({ patient }: { patient: PatientData }) {
+export function RegeneratePasswordButton({
+  patient,
+  dict,
+  credentialsDict,
+}: {
+  patient: PatientData;
+  dict: Dictionary["adminPatientDetail"];
+  credentialsDict: Dictionary["credentials"];
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(
@@ -165,16 +188,12 @@ export function RegeneratePasswordButton({ patient }: { patient: PatientData }) 
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>
         <KeyRound aria-hidden className="size-4" />
-        Regenerate password
+        {dict.regeneratePassword}
       </Button>
-      <Modal
-        open={open}
-        onClose={close}
-        title={state.ok && state.password ? "New credentials ready" : "Regenerate password?"}
-      >
+      <Modal open={open} onClose={close} title={dict.regeneratePassword}>
         {state.ok && state.password && state.patientId ? (
           <div className="space-y-5">
-            <CredentialReveal patientId={state.patientId} password={state.password} />
+            <CredentialReveal patientId={state.patientId} password={state.password} dict={credentialsDict} />
             <Button onClick={close} variant="secondary" className="w-full">
               Done
             </Button>
@@ -195,7 +214,7 @@ export function RegeneratePasswordButton({ patient }: { patient: PatientData }) 
               </Button>
               <Button type="submit" loading={pending}>
                 <KeyRound aria-hidden className="size-4" />
-                Generate new password
+                {dict.regeneratePassword}
               </Button>
             </div>
           </form>
@@ -205,7 +224,34 @@ export function RegeneratePasswordButton({ patient }: { patient: PatientData }) 
   );
 }
 
-export function ToggleStatusButton({ patient }: { patient: PatientData }) {
+export function SyncDocumentsButton({ patient, dict }: { patient: PatientData; dict: Dictionary["adminPatientDetail"] }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState<AdminActionState, FormData>(
+    syncPatientDocuments,
+    {},
+  );
+
+  useEffect(() => {
+    if (state.ok) router.refresh();
+  }, [state.ok, router]);
+
+  return (
+    <form action={action}>
+      <input type="hidden" name="id" value={patient.id} />
+      <Button type="submit" variant="secondary" loading={pending} title={state.error}>
+        <RefreshCw aria-hidden className="size-4" />
+        {dict.syncDocuments}
+        {state.ok && state.documentsSynced != null && (
+          <span className="tnum ml-0.5 text-[12px] font-normal text-ink-faint">
+            ({state.documentsSynced})
+          </span>
+        )}
+      </Button>
+    </form>
+  );
+}
+
+export function ToggleStatusButton({ patient, dict }: { patient: PatientData; dict: Dictionary["adminPatientDetail"] }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(
@@ -226,7 +272,7 @@ export function ToggleStatusButton({ patient }: { patient: PatientData }) {
         ) : (
           <ShieldCheck aria-hidden className="size-4" />
         )}
-        {patient.active ? "Disable access" : "Enable access"}
+        {patient.active ? dict.disableAccess : dict.enableAccess}
       </Button>
       <Modal
         open={open}
@@ -255,7 +301,7 @@ export function ToggleStatusButton({ patient }: { patient: PatientData }) {
               Cancel
             </Button>
             <Button type="submit" variant={patient.active ? "danger" : "accent"} loading={pending}>
-              {patient.active ? "Disable account" : "Enable account"}
+              {patient.active ? dict.disableAccess : dict.enableAccess}
             </Button>
           </div>
         </form>

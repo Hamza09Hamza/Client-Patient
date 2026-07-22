@@ -8,27 +8,35 @@ import { verifyPassword } from "@/lib/password";
 import { createSession, destroySession, getSession } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
+import { describeDevice } from "@/lib/device";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { t } from "@/lib/i18n/dictionaries";
 
 export interface AuthFormState {
   error?: string;
 }
-
-const credentialsSchema = z.object({
-  username: z.string().trim().min(1, "Enter your ID").max(100),
-  password: z.string().min(1, "Enter your password").max(200),
-});
 
 async function clientIp(): Promise<string> {
   const h = await headers();
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
 }
 
-const GENERIC_ERROR = "Incorrect ID or password. Check both and try again.";
+async function clientDevice(): Promise<string | null> {
+  const h = await headers();
+  return describeDevice(h.get("user-agent"));
+}
 
 export async function patientLogin(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const dict = getDictionary(await getLocale()).login;
+  const credentialsSchema = z.object({
+    username: z.string().trim().min(1, dict.enterUsername).max(100),
+    password: z.string().min(1, dict.enterPassword).max(200),
+  });
+
   const parsed = credentialsSchema.safeParse({
     username: formData.get("username"),
     password: formData.get("password"),
@@ -39,26 +47,30 @@ export async function patientLogin(
   const ip = await clientIp();
   const limited = rateLimit(`login:${ip}:${username.toLowerCase()}`, 5, 300);
   if (!limited.allowed) {
-    return { error: `Too many attempts. Try again in ${Math.ceil(limited.retryAfter / 60)} min.` };
+    return { error: t(dict.rateLimitError, { minutes: Math.ceil(limited.retryAfter / 60) }) };
   }
 
   const patient = await db.patient.findUnique({ where: { patientId: username } });
   if (!patient || !verifyPassword(password, patient.password)) {
     await audit("PATIENT", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
-    return { error: GENERIC_ERROR };
+    return { error: dict.genericError };
   }
   if (patient.status === "DISABLED") {
-    return { error: "This account is disabled. Contact the clinic for assistance." };
+    return { error: dict.disabledError };
   }
 
-  await db.patient.update({ where: { id: patient.id }, data: { lastLoginAt: new Date() } });
+  const device = await clientDevice();
+  await db.patient.update({
+    where: { id: patient.id },
+    data: { lastLoginAt: new Date(), lastLoginDevice: device },
+  });
   await createSession({
     sub: patient.id,
     username: patient.patientId,
     name: patient.fullName,
     role: "patient",
   });
-  await audit("PATIENT", patient.patientId, "LOGIN", undefined, `ip=${ip}`);
+  await audit("PATIENT", patient.patientId, "LOGIN", undefined, `ip=${ip}${device ? `, device=${device}` : ""}`);
   redirect("/portal");
 }
 
@@ -66,6 +78,12 @@ export async function adminLogin(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const dict = getDictionary(await getLocale()).login;
+  const credentialsSchema = z.object({
+    username: z.string().trim().min(1, dict.enterUsername).max(100),
+    password: z.string().min(1, dict.enterPassword).max(200),
+  });
+
   const parsed = credentialsSchema.safeParse({
     username: formData.get("username"),
     password: formData.get("password"),
@@ -76,22 +94,27 @@ export async function adminLogin(
   const ip = await clientIp();
   const limited = rateLimit(`admin-login:${ip}`, 5, 300);
   if (!limited.allowed) {
-    return { error: `Too many attempts. Try again in ${Math.ceil(limited.retryAfter / 60)} min.` };
+    return { error: t(dict.rateLimitError, { minutes: Math.ceil(limited.retryAfter / 60) }) };
   }
 
   const admin = await db.admin.findUnique({ where: { username } });
   if (!admin || !verifyPassword(password, admin.password)) {
     await audit("ADMIN", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
-    return { error: GENERIC_ERROR };
+    return { error: dict.genericError };
   }
 
+  const device = await clientDevice();
+  await db.admin.update({
+    where: { id: admin.id },
+    data: { lastLoginAt: new Date(), lastLoginDevice: device },
+  });
   await createSession({
     sub: admin.id,
     username: admin.username,
     name: admin.fullName,
     role: "admin",
   });
-  await audit("ADMIN", admin.username, "LOGIN", undefined, `ip=${ip}`);
+  await audit("ADMIN", admin.username, "LOGIN", undefined, `ip=${ip}${device ? `, device=${device}` : ""}`);
   redirect("/admin");
 }
 

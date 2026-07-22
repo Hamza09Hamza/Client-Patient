@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { checkIntegrationAuth } from "@/lib/integration-auth";
 import { generatePassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
+import { syncPatientDocumentsCore } from "@/lib/document-sync";
 
 const bodySchema = z.object({
   patientId: z
@@ -29,6 +30,12 @@ const bodySchema = z.object({
  *
  * The generated password is returned here and also stored as-is (see the
  * README security section for why this system stores credentials in plaintext).
+ *
+ * If CLINIC_SOURCE_BASE_URL / CLINIC_SOURCE_SHARED_SECRET are configured, this
+ * also pulls the patient's document history from the clinic's own system right
+ * away (see src/lib/clinic-source.ts) and includes the count in the response.
+ * A sync failure never fails the provisioning call — credentials are still
+ * returned, and the admin console has a manual "Sync" retry.
  */
 export async function POST(request: NextRequest) {
   const denied = checkIntegrationAuth(request);
@@ -60,11 +67,14 @@ export async function POST(request: NextRequest) {
       data: { password, mustChangePassword: true },
     });
     await audit("SYSTEM", "integration", "PASSWORD_REGENERATED", data.patientId);
+    const sync = await syncPatientDocumentsCore(existing.id, existing.patientId, "SYSTEM", "integration");
     return NextResponse.json({
       patientId: existing.patientId,
       fullName: existing.fullName,
       password,
       created: false,
+      documentsSynced: sync.ok ? sync.count : undefined,
+      documentSyncError: sync.ok ? undefined : sync.error,
     });
   }
 
@@ -89,8 +99,16 @@ export async function POST(request: NextRequest) {
   });
 
   await audit("SYSTEM", "integration", "PATIENT_CREATED", patient.patientId);
+  const sync = await syncPatientDocumentsCore(patient.id, patient.patientId, "SYSTEM", "integration");
   return NextResponse.json(
-    { patientId: patient.patientId, fullName: patient.fullName, password, created: true },
+    {
+      patientId: patient.patientId,
+      fullName: patient.fullName,
+      password,
+      created: true,
+      documentsSynced: sync.ok ? sync.count : undefined,
+      documentSyncError: sync.ok ? undefined : sync.error,
+    },
     { status: 201 },
   );
 }

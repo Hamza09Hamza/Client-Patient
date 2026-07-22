@@ -12,6 +12,8 @@ import {
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatRelative } from "@/lib/format";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CountUp } from "@/components/rb/count-up";
@@ -19,7 +21,7 @@ import { FadeIn } from "@/components/rb/fade-in";
 
 export const metadata: Metadata = { title: "Admin dashboard" };
 
-const ACTION_LABELS: Record<string, string> = {
+const ACTION_LABELS_EN: Record<string, string> = {
   LOGIN: "signed in",
   LOGOUT: "signed out",
   LOGIN_FAILED: "failed to sign in",
@@ -37,12 +39,39 @@ const ACTION_LABELS: Record<string, string> = {
   RESULT_DELETED: "deleted result",
   RESULT_VIEWED: "viewed result",
   RESULT_DOWNLOADED: "downloaded result",
+  DOCUMENTS_SYNCED: "synced clinic documents for",
   ADMIN_PASSWORD_CHANGED: "changed the console password",
   DATABASE_SEEDED: "seeded the database",
 };
 
+const ACTION_LABELS_FR: Record<string, string> = {
+  LOGIN: "s'est connecté(e)",
+  LOGOUT: "s'est déconnecté(e)",
+  LOGIN_FAILED: "a échoué à se connecter",
+  PATIENT_CREATED: "a créé le patient",
+  PATIENT_UPDATED: "a mis à jour le patient",
+  PATIENT_DISABLED: "a désactivé le patient",
+  PATIENT_ENABLED: "a réactivé le patient",
+  PASSWORD_REGENERATED: "a régénéré le mot de passe de",
+  PASSWORD_VIEWED: "a consulté le mot de passe de",
+  PASSWORD_CHANGED: "a changé son mot de passe",
+  RESET_REQUESTED: "a demandé une réinitialisation de mot de passe",
+  RESET_APPROVED: "a approuvé la réinitialisation de",
+  RESET_DENIED: "a refusé la réinitialisation de",
+  RESULT_CREATED: "a enregistré le résultat",
+  RESULT_DELETED: "a supprimé le résultat",
+  RESULT_VIEWED: "a consulté le résultat",
+  RESULT_DOWNLOADED: "a téléchargé le résultat",
+  DOCUMENTS_SYNCED: "a synchronisé les documents de la clinique pour",
+  ADMIN_PASSWORD_CHANGED: "a changé le mot de passe de la console",
+  DATABASE_SEEDED: "a initialisé la base de données",
+};
+
 export default async function AdminDashboardPage() {
   const session = await requireAdmin();
+  const locale = await getLocale();
+  const dict = getDictionary(locale).adminDashboard;
+  const actionLabels = locale === "fr" ? ACTION_LABELS_FR : ACTION_LABELS_EN;
 
   const [patientCount, activeCount, resultCount, pendingRequests, recentActivity] =
     await Promise.all([
@@ -54,27 +83,25 @@ export default async function AdminDashboardPage() {
     ]);
 
   const stats = [
-    { label: "Registered patients", value: patientCount, Icon: Users, context: "accounts provisioned" },
-    { label: "Active accounts", value: activeCount, Icon: Activity, context: "able to sign in today" },
-    { label: "Reports on file", value: resultCount, Icon: FlaskConical, context: "across all patients" },
-    { label: "Pending resets", value: pendingRequests, Icon: KeyRound, context: "awaiting your review" },
+    { label: dict.registeredPatients, value: patientCount, Icon: Users, context: dict.registeredPatientsContext },
+    { label: dict.activeAccounts, value: activeCount, Icon: Activity, context: dict.activeAccountsContext },
+    { label: dict.reportsOnFile, value: resultCount, Icon: FlaskConical, context: dict.reportsOnFileContext },
+    { label: dict.pendingResets, value: pendingRequests, Icon: KeyRound, context: dict.pendingResetsContext },
   ];
 
   const quickActions = [
-    { href: "/admin/patients?new=1", label: "Add a patient", Icon: UserPlus },
-    { href: "/admin/results/new", label: "Record a result", Icon: FilePlus2 },
-    { href: "/admin/requests", label: "Review reset requests", Icon: KeyRound },
+    { href: "/admin/patients?new=1", label: dict.addPatient, Icon: UserPlus },
+    { href: "/admin/results/new", label: dict.recordResult, Icon: FilePlus2 },
+    { href: "/admin/requests", label: dict.reviewRequests, Icon: KeyRound },
   ];
 
   return (
     <div className="space-y-8">
       <FadeIn>
         <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">
-          Welcome back, {session.name.split(" ")[0]}
+          {t(dict.welcome, { name: session.name.split(" ")[0] })}
         </h1>
-        <p className="mt-1 text-[15px] text-ink-muted">
-          Here is what is happening at the clinic today.
-        </p>
+        <p className="mt-1 text-[15px] text-ink-muted">{dict.subtitle}</p>
       </FadeIn>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -97,7 +124,7 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-5">
         <FadeIn delay={0.2} className="lg:col-span-2">
           <Card className="p-5">
-            <h2 className="font-semibold text-ink">Quick actions</h2>
+            <h2 className="font-semibold text-ink">{dict.quickActions}</h2>
             <div className="mt-4 space-y-2.5">
               {quickActions.map(({ href, label, Icon }) => (
                 <Link
@@ -122,21 +149,17 @@ export default async function AdminDashboardPage() {
         <FadeIn delay={0.26} className="lg:col-span-3">
           <Card>
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="font-semibold text-ink">Recent activity</h2>
+              <h2 className="font-semibold text-ink">{dict.recentActivity}</h2>
               <Link
                 href="/admin/audit"
                 className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline"
               >
-                Full audit log
+                {dict.fullAuditLog}
                 <ArrowRight aria-hidden className="size-3.5" />
               </Link>
             </div>
             {recentActivity.length === 0 ? (
-              <EmptyState
-                icon={Activity}
-                title="No activity yet"
-                description="Actions taken in the portal and console will appear here."
-              />
+              <EmptyState icon={Activity} title={dict.emptyTitle} description={dict.emptyDesc} />
             ) : (
               <ul className="divide-y divide-border/70 px-5">
                 {recentActivity.map((entry) => (
@@ -154,7 +177,7 @@ export default async function AdminDashboardPage() {
                     <p className="min-w-0 flex-1 truncate text-sm text-ink">
                       <span className="font-semibold">{entry.actorId}</span>{" "}
                       <span className="text-ink-muted">
-                        {ACTION_LABELS[entry.action] ?? entry.action.toLowerCase().replaceAll("_", " ")}
+                        {actionLabels[entry.action] ?? entry.action.toLowerCase().replaceAll("_", " ")}
                       </span>
                       {entry.target && <span className="font-semibold"> {entry.target}</span>}
                     </p>

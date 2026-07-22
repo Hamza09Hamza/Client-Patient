@@ -5,12 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FilePlus2, Loader2, Search } from "lucide-react";
 import { SelectField } from "@/components/ui/select";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-export function ResultsToolbar() {
+export function ResultsToolbar({ dict }: { dict: Dictionary }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const admin = dict.adminResults;
+  const statuses = dict.portalResults;
 
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,8 +54,8 @@ export function ResultsToolbar() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by report number, test, or patient"
-          aria-label="Search results"
+          placeholder={admin.searchPlaceholder}
+          aria-label={admin.searchPlaceholder}
           className="h-11 w-full rounded-xl border border-border-strong bg-surface pl-10 pr-10 text-[15px] text-ink placeholder:text-ink-faint transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15"
         />
         {isPending && (
@@ -70,10 +73,10 @@ export function ResultsToolbar() {
         value={searchParams.get("status") ?? ""}
         onChange={(e) => setParams({ status: e.target.value })}
       >
-        <option value="">Any status</option>
-        <option value="PENDING">In progress</option>
-        <option value="COMPLETED">Completed</option>
-        <option value="REVIEWED">Reviewed</option>
+        <option value="">{statuses.anyStatus}</option>
+        <option value="PENDING">{statuses.statusPending}</option>
+        <option value="COMPLETED">{statuses.statusCompleted}</option>
+        <option value="REVIEWED">{statuses.statusReviewed}</option>
       </SelectField>
 
       <Link
@@ -81,7 +84,7 @@ export function ResultsToolbar() {
         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 select-none hover:bg-primary-strong active:scale-[0.98]"
       >
         <FilePlus2 aria-hidden className="size-4" />
-        Record result
+        {admin.recordResult}
       </Link>
     </div>
   );

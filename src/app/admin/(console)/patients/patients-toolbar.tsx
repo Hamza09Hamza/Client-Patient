@@ -9,8 +9,10 @@ import { Field } from "@/components/ui/field";
 import { SelectField } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { CredentialReveal } from "@/components/admin/credential-reveal";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-export function PatientsToolbar() {
+export function PatientsToolbar({ dict: fullDict }: { dict: Dictionary }) {
+  const dict = fullDict.adminPatients;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -70,8 +72,8 @@ export function PatientsToolbar() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or patient ID"
-            aria-label="Search patients"
+            placeholder={dict.searchPlaceholder}
+            aria-label={dict.searchPlaceholder}
             className="h-11 w-full rounded-xl border border-border-strong bg-surface pl-10 pr-10 text-[15px] text-ink placeholder:text-ink-faint transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15"
           />
           {isPending && (
@@ -89,25 +91,25 @@ export function PatientsToolbar() {
           value={searchParams.get("status") ?? ""}
           onChange={(e) => setParams({ status: e.target.value })}
         >
-          <option value="">All statuses</option>
-          <option value="ACTIVE">Active</option>
-          <option value="DISABLED">Disabled</option>
+          <option value="">{dict.allStatuses}</option>
+          <option value="ACTIVE">{dict.active}</option>
+          <option value="DISABLED">{dict.disabled}</option>
         </SelectField>
 
         <Button onClick={() => setOpen(true)}>
           <UserPlus aria-hidden className="size-4" />
-          New patient
+          {dict.newPatient}
         </Button>
       </div>
 
       <Modal
         open={open}
         onClose={closeModal}
-        title={state.ok && state.password ? "Patient created" : "Register a new patient"}
+        title={state.ok && state.password ? dict.createdModalTitle : dict.createModalTitle}
       >
         {state.ok && state.password && state.patientId ? (
           <div className="space-y-5">
-            <CredentialReveal patientId={state.patientId} password={state.password} />
+            <CredentialReveal patientId={state.patientId} password={state.password} dict={fullDict.credentials} />
             <Button onClick={closeModal} variant="secondary" className="w-full">
               Done
             </Button>
@@ -148,14 +150,11 @@ export function PatientsToolbar() {
               </SelectField>
             </div>
 
-            <p className="text-[13px] leading-relaxed text-ink-muted">
-              A strong password is generated automatically when you save — you will see it
-              once, on the next screen.
-            </p>
+            <p className="text-[13px] leading-relaxed text-ink-muted">{dict.passwordNoteText}</p>
 
             <Button type="submit" loading={submitting} className="w-full">
               <UserPlus aria-hidden className="size-4" />
-              Create patient and generate password
+              {dict.createButton}
             </Button>
           </form>
         )}

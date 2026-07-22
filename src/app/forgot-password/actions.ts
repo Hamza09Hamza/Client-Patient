@@ -8,21 +8,13 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export interface ResetRequestState {
   ok?: boolean;
   error?: string;
 }
-
-const schema = z.object({
-  patientId: z.string().trim().min(3, "Enter your patient ID").max(100),
-  email: z.string().trim().email("Enter a valid email address").max(200),
-  note: z
-    .string()
-    .trim()
-    .min(20, "Please explain in a few sentences why you are requesting a reset (at least 20 characters)")
-    .max(2000),
-});
 
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -35,11 +27,18 @@ export async function submitResetRequest(
   _prev: ResetRequestState,
   formData: FormData,
 ): Promise<ResetRequestState> {
+  const dict = getDictionary(await getLocale()).forgotPassword;
+  const schema = z.object({
+    patientId: z.string().trim().min(3, dict.enterPatientId).max(100),
+    email: z.string().trim().email(dict.enterEmail).max(200),
+    note: z.string().trim().min(20, dict.enterNote).max(2000),
+  });
+
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   const limited = rateLimit(`reset-request:${ip}`, 3, 3600);
   if (!limited.allowed) {
-    return { error: "Too many requests from this connection. Please try again later." };
+    return { error: dict.rateLimitError };
   }
 
   const parsed = schema.safeParse({
@@ -51,14 +50,14 @@ export async function submitResetRequest(
 
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size === 0) {
-    return { error: "Attach a photo of your ID document so the clinic can verify you." };
+    return { error: dict.attachPhoto };
   }
   const ext = ALLOWED_TYPES[photo.type];
   if (!ext || extname(photo.name).length > 6) {
-    return { error: "The ID photo must be a JPEG, PNG, or WebP image." };
+    return { error: dict.photoType };
   }
   if (photo.size > MAX_PHOTO_BYTES) {
-    return { error: "The ID photo must be smaller than 8 MB." };
+    return { error: dict.photoSize };
   }
 
   const uploadsDir = join(process.cwd(), "uploads");

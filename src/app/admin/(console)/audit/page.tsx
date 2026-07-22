@@ -4,6 +4,8 @@ import type { ActorType, Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import { getLocale } from "@/lib/i18n/locale";
+import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -33,6 +35,8 @@ export default async function AuditLogPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
+  const fullDict = getDictionary(await getLocale());
+  const dict = fullDict.adminAudit;
 
   const where: Prisma.AuditLogWhereInput = {};
   if (params.actor && ACTOR_TYPES.includes(params.actor as ActorType)) {
@@ -61,34 +65,28 @@ export default async function AuditLogPage({
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">Audit log</h1>
-        <p className="mt-1 text-[15px] text-ink-muted">
-          Every sign-in, view, download, and administrative change — {totalCount} entries.
-        </p>
+        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
+        <p className="mt-1 text-[15px] text-ink-muted">{t(dict.subtitle, { count: totalCount })}</p>
       </FadeIn>
 
       <FadeIn delay={0.08}>
-        <AuditFilter />
+        <AuditFilter dict={dict} />
       </FadeIn>
 
       <FadeIn delay={0.15}>
         <Card>
           {entries.length === 0 ? (
-            <EmptyState
-              icon={ScrollText}
-              title="No entries"
-              description="Activity will be recorded here as the portal is used."
-            />
+            <EmptyState icon={ScrollText} title={dict.emptyTitle} description={dict.emptyDesc} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-165 text-left">
                 <thead>
                   <tr className="border-b border-border text-[12px] uppercase tracking-wider text-ink-muted">
-                    <th scope="col" className="px-5 py-3.5 font-semibold">When</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Actor</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Action</th>
-                    <th scope="col" className="px-4 py-3.5 font-semibold">Target</th>
-                    <th scope="col" className="px-5 py-3.5 font-semibold">Detail</th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold">{dict.colWhen}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colActor}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colAction}</th>
+                    <th scope="col" className="px-4 py-3.5 font-semibold">{dict.colTarget}</th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold">{dict.colDetail}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">

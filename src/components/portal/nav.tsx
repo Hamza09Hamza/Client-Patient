@@ -3,18 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FlaskConical, LayoutDashboard, Settings, type LucideIcon } from "lucide-react";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
-const LINKS: { href: string; label: string; Icon: LucideIcon; exact?: boolean }[] = [
-  { href: "/portal", label: "Overview", Icon: LayoutDashboard, exact: true },
-  { href: "/portal/results", label: "My results", Icon: FlaskConical },
-  { href: "/portal/settings", label: "Settings", Icon: Settings },
-];
-
-export function PortalNavLinks({ className }: { className?: string }) {
+export function PortalNavLinks({
+  dict,
+  className,
+}: {
+  dict: Dictionary["portalNav"];
+  className?: string;
+}) {
   const pathname = usePathname();
+  const links: { href: string; label: string; Icon: LucideIcon; exact?: boolean }[] = [
+    { href: "/portal", label: dict.overview, Icon: LayoutDashboard, exact: true },
+    { href: "/portal/results", label: dict.myResults, Icon: FlaskConical },
+    { href: "/portal/settings", label: dict.settings, Icon: Settings },
+  ];
   return (
     <div className={className}>
-      {LINKS.map(({ href, label, Icon, exact }) => {
+      {links.map(({ href, label, Icon, exact }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link

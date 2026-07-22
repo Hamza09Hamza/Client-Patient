@@ -1,20 +1,27 @@
-# Meridian Clinic — Laboratory Results Website
+# Clinique Amina — Laboratory Results Website
 
 A patient-facing website where clinic patients securely view, filter, print, and download
 their laboratory results, plus an administration console for clinic staff and a
-token-protected integration API for the clinic's internal systems.
+token-protected integration API for the clinic's internal systems. Bilingual (French/English).
 
 Built with **Next.js 16 (App Router, TypeScript)**, **PostgreSQL + Prisma**,
 **Tailwind CSS 4**, **Motion** (animations), and **Lucide** icons.
+
+The clinic name is centralized in `src/lib/config.ts` (`CLINIC_NAME`) — change it once and
+every page, the generated PDF, and password-reset emails update.
 
 ## Features
 
 ### Patient portal (`/portal`)
 - Sign in with the clinic-issued **Patient ID + generated password**
+- **Bilingual UI** — French/English switcher (top-right on every page), cookie-persisted
 - Overview dashboard: stat tiles, latest reports, alert banner when recent values are critical
 - Full history with **search, category/status filters, date range, sorting, pagination**
-- Report detail with flagged values (Normal / Low / High / Critical)
+- Report detail with flagged values (Normal / Low / High / Critical) for manually entered
+  results, or a **direct link to the original clinic PDF** for reports synced from the
+  clinic's own system (see "Clinic document sync" below)
 - **Print** (print-optimized stylesheet) and **Download PDF** (server-generated with pdf-lib)
+  for manually entered results
 - Forgot password: patient submits **email + ID document photo + explanation**; clinic staff
   review and approve/deny
 - Self-service password change
@@ -22,11 +29,23 @@ Built with **Next.js 16 (App Router, TypeScript)**, **PostgreSQL + Prisma**,
 ### Administration console (`/admin`)
 - Dashboard: clinic-wide stats, live activity feed, quick actions
 - **Patients**: register (password auto-generated), edit, enable/disable, **view current
-  password**, or regenerate a new one
+  password**, regenerate a new one, or manually re-sync their clinic documents. Shows each
+  patient's **last sign-in device** (OS/browser, e.g. "Windows · Chrome" or "iOS · Safari")
 - **Lab results**: record reports with dynamic analyte rows, delete, search
 - **Reset requests**: review the submitted ID photo and note, approve (new credentials +
   one-click email draft) or deny with a reason
 - **Audit log**: every sign-in, view, download, and administrative change
+
+### Clinic document sync (SERVER A ↔ SERVER B)
+This app ("SERVER B") can pull a patient's full report history — as PDFs, not structured
+values — from the clinic's own internal system ("SERVER A"). When a patient is provisioned
+via the integration API (or an admin clicks **Sync from clinic system**), this app mints a
+short-lived signed token and calls out to SERVER A with the patient's ID; SERVER A responds
+with an array of `{ externalId, title, collectedAt, link, ... }` document records, which are
+cached locally (upserted by `externalId`, so re-syncing is always safe) and shown in the
+patient's results list like any other report. See **[docs/API.md → Clinic source
+contract](docs/API.md#clinic-source-contract-server-a)** for the exact shape SERVER A must
+implement, and the note there about `link` values that are local file paths rather than URLs.
 
 ### Integration API (`/api/integration/*`)
 For the clinic's internal system (LIS/HIS). Requests authenticate with a Bearer token.
@@ -81,7 +100,9 @@ For a real deployment, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 ### Environment variables
 
 Copy `.env` and set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
-(32+ random chars), `INTEGRATION_API_KEY` (16+ random chars).
+(32+ random chars), `INTEGRATION_API_KEY` (16+ random chars). Optional, only needed for
+clinic document sync: `CLINIC_SOURCE_BASE_URL`, `CLINIC_SOURCE_SHARED_SECRET` (32+ random
+chars) — see [docs/API.md](docs/API.md).
 
 ### Demo credentials (seed data)
 
@@ -99,8 +120,8 @@ Copy `.env` and set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
   every password.** Every generation, regeneration, and view is written to the audit
   log with the acting admin. If you'd rather have the standard, safer behavior
   (one-way hashing; admins can only regenerate, never view), that's a small change in
-  `src/lib/password.ts` + the `password`/`password` fields in `prisma/schema.prisma` —
-  ask if you want it switched. See **[DEPLOYMENT.md](DEPLOYMENT.md) → Security notes**
+  `src/lib/password.ts` + the `password` field in `prisma/schema.prisma` — ask if you
+  want it switched. See **[DEPLOYMENT.md](DEPLOYMENT.md) → Security notes**
   for how to compensate operationally (encryption at rest, network-restricted DB
   access, encrypted backups).
 - Sessions are **HS256 JWTs in httpOnly, sameSite cookies** (8 h); the proxy does
@@ -115,13 +136,14 @@ Copy `.env` and set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
 ## Project structure
 
 ```
-docs/API.md         integration API reference (auth, endpoints, examples)
+docs/API.md          integration API reference (auth, endpoints, clinic source contract)
 DEPLOYMENT.md        production deploy guide
 scripts/deploy.sh    install → migrate → build → start
 prisma/              schema + seed (seed refuses to run in production)
 src/proxy.ts         route guard (Next 16 proxy)
-src/lib/              db, session, password, rate-limit, audit, server actions
-src/components/       ui/ (buttons, fields, modals…), rb/ (animated components), admin/, portal/
+src/lib/              db, session, password, device, rate-limit, audit, i18n/, clinic-source.ts,
+                       document-sync.ts, server actions
+src/components/       ui/ (buttons, fields, modals…), rb/ (animated components), i18n/, admin/, portal/
 src/app/
   login, forgot-password        public patient pages
   portal/                       patient dashboard, results, settings

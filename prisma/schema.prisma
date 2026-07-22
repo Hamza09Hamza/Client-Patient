@@ -52,6 +52,10 @@ model Patient {
   // set when an admin regenerates credentials; cleared on first login
   mustChangePassword Boolean  @default(false)
   lastLoginAt   DateTime?
+  // human-readable OS/browser/device parsed from the User-Agent at last login,
+  // e.g. "macOS · Safari" or "Android · Chrome Mobile (SM-G991B)" — best effort,
+  // see src/lib/device.ts for why exact phone models aren't always available
+  lastLoginDevice String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -67,6 +71,8 @@ model Admin {
   fullName  String
   // plaintext by product decision — see docs/API.md and README security section
   password  String
+  lastLoginAt     DateTime?
+  lastLoginDevice String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -84,11 +90,17 @@ model LabResult {
   collectedAt       DateTime
   reportedAt        DateTime?
   notes             String?
+  // set when this report was synced from the clinic's own system (SERVER A)
+  // instead of entered by an admin — see src/lib/clinic-source.ts. When present,
+  // the portal shows a link to the original PDF instead of the values table.
+  sourceRef         String? // SERVER A's document id, for idempotent re-sync
+  sourceLink        String? // raw link/path as given by SERVER A (URL or local path)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
   values LabResultValue[]
 
+  @@unique([patientDbId, sourceRef])
   @@index([patientDbId, collectedAt(sort: Desc)])
   @@index([category])
   @@index([status])
