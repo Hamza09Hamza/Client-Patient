@@ -1,8 +1,9 @@
 # Clinique Amina — Laboratory Results Website
 
-A patient-facing website where clinic patients securely view, filter, print, and download
-their laboratory results, plus an administration console for clinic staff and a
-token-protected integration API for the clinic's internal systems. Bilingual (French/English).
+A patient-facing website where clinic patients securely view, filter, and download
+their laboratory results — as PDFs synced from the clinic's own system — plus an
+administration console for clinic staff and a token-protected integration API for the
+clinic's internal systems. Bilingual (French/English).
 
 Built with **Next.js 16 (App Router, TypeScript)**, **PostgreSQL + Prisma**,
 **Tailwind CSS 4**, **Motion** (animations), and **Lucide** icons.
@@ -15,23 +16,26 @@ every page, the generated PDF, and password-reset emails update.
 ### Patient portal (`/portal`)
 - Sign in with the clinic-issued **Patient ID + generated password**
 - **Bilingual UI** — French/English switcher (top-right on every page), cookie-persisted
-- Overview dashboard: stat tiles, latest reports, alert banner when recent values are critical
+- Overview dashboard: stat tiles, latest reports
 - Full history with **search, category/status filters, date range, sorting, pagination**
-- Report detail with flagged values (Normal / Low / High / Critical) for manually entered
-  results, or a **direct link to the original clinic PDF** for reports synced from the
-  clinic's own system (see "Clinic document sync" below)
-- **Print** (print-optimized stylesheet) and **Download PDF** (server-generated with pdf-lib)
-  for manually entered results
+- Report detail: a **custom-built PDF viewer** (page nav, zoom, thumbnails, fullscreen — not
+  the browser's native plugin) for reports synced from the clinic's own system, wrapped in a
+  hand-rolled "liquid glass" toolbar (see "Design notes" below). No structured values are
+  entered or shown anywhere in the app — every report is the clinic's own PDF
 - Forgot password: patient submits **email + ID document photo + explanation**; clinic staff
-  review and approve/deny
-- Self-service password change
+  review and approve/deny — **can be disabled entirely** via `PASSWORD_RESET_REQUESTS_ENABLED`,
+  in which case patients are told to call the clinic directly (see "Security model" below).
+  Patients never set their own password directly — there is no self-service change
 
 ### Administration console (`/admin`)
-- Dashboard: clinic-wide stats, live activity feed, quick actions
+- Dashboard: clinic-wide stats, live activity feed, quick actions, and a **Stats** section
+  (total/unique report downloads, patients active in the last 15 minutes, a 30-day daily-active
+  trend with a sparkline)
 - **Patients**: register (password auto-generated), edit, enable/disable, **view current
   password**, regenerate a new one, or manually re-sync their clinic documents. Shows each
   patient's **last sign-in device** (OS/browser, e.g. "Windows · Chrome" or "iOS · Safari")
-- **Lab results**: record reports with dynamic analyte rows, delete, search
+- **Lab results**: browse and delete synced reports, search — reports can only ever be
+  created by syncing from the clinic system, never entered by hand
 - **Reset requests**: review the submitted ID photo and note, approve (new credentials +
   one-click email draft) or deny with a reason
 - **Audit log**: every sign-in, view, download, and administrative change
@@ -47,9 +51,10 @@ patient's results list like any other report. See **[docs/API.md → Clinic sour
 contract](docs/API.md#clinic-source-contract-server-a)** for the exact shape SERVER A must
 implement, and the note there about `link` values that are local file paths rather than URLs.
 
-### Integration API (`/api/integration/*`)
-For the clinic's internal system (LIS/HIS). Requests authenticate with a Bearer token.
-Full reference, request/response shapes, and error codes: **[docs/API.md](docs/API.md)**.
+### Integration API (`/api/integration/patients`)
+For the clinic's internal system (LIS/HIS) to provision patient accounts. Requests
+authenticate with a Bearer token. Full reference, request/response shape, and error
+codes: **[docs/API.md](docs/API.md)**.
 
 ```bash
 # Verify/create a patient and receive generated credentials
@@ -58,13 +63,6 @@ curl -X POST https://<host>/api/integration/patients \
   -d '{"patientId":"PAT-2026-0200","fullName":"Jane Doe","email":"jane@example.com"}'
 # -> {"patientId":"PAT-2026-0200","fullName":"Jane Doe","password":"Kt7m-Rx4q-Wn9d","created":true}
 # Posting an existing patientId regenerates their password.
-
-# Push a validated report
-curl -X POST https://<host>/api/integration/results \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"patientId":"PAT-2026-0200","category":"Hematology","testName":"CBC",
-       "collectedAt":"2026-07-21","values":[{"analyte":"Hemoglobin","value":"14.1",
-       "unit":"g/dL","refRange":"13.0 - 17.0","flag":"NORMAL"}]}'
 ```
 
 ## Getting started
@@ -102,7 +100,8 @@ For a real deployment, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 Copy `.env` and set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
 (32+ random chars), `INTEGRATION_API_KEY` (16+ random chars). Optional, only needed for
 clinic document sync: `CLINIC_SOURCE_BASE_URL`, `CLINIC_SOURCE_SHARED_SECRET` (32+ random
-chars) — see [docs/API.md](docs/API.md).
+chars) — see [docs/API.md](docs/API.md). `PASSWORD_RESET_REQUESTS_ENABLED` toggles the
+online password-reset form on/off (defaults to on) — see "Security model" below.
 
 ### Demo credentials (seed data)
 
@@ -124,6 +123,12 @@ chars) — see [docs/API.md](docs/API.md).
   want it switched. See **[DEPLOYMENT.md](DEPLOYMENT.md) → Security notes**
   for how to compensate operationally (encryption at rest, network-restricted DB
   access, encrypted backups).
+- **Patients cannot change their own password directly** — only request a reset
+  (email + ID photo + note, reviewed by staff). That request flow itself can be turned
+  off with `PASSWORD_RESET_REQUESTS_ENABLED=false`, in which case the portal tells
+  patients to call the clinic directly (`CLINIC_PHONE` in `src/lib/config.ts` — replace
+  the placeholder with the real number) and the server action refuses the request even
+  if someone posts to it directly.
 - Sessions are **HS256 JWTs in httpOnly, sameSite cookies** (8 h); the proxy does
   optimistic role checks and every page/action re-verifies against the database
 - The integration API authenticates with a **Bearer token**, constant-time compared —
@@ -139,18 +144,21 @@ chars) — see [docs/API.md](docs/API.md).
 docs/API.md          integration API reference (auth, endpoints, clinic source contract)
 DEPLOYMENT.md        production deploy guide
 scripts/deploy.sh    install → migrate → build → start
+scripts/copy-pdf-worker.mjs  syncs the pdf.js worker into public/pdfjs/ (runs on postinstall)
 prisma/              schema + seed (seed refuses to run in production)
 src/proxy.ts         route guard (Next 16 proxy)
-src/lib/              db, session, password, device, rate-limit, audit, i18n/, clinic-source.ts,
-                       document-sync.ts, server actions
-src/components/       ui/ (buttons, fields, modals…), rb/ (animated components), i18n/, admin/, portal/
+src/lib/              db, session, password, device, rate-limit, audit, feature-flags,
+                       pdf-link, i18n/, clinic-source.ts, document-sync.ts, server actions
+src/components/       ui/ (buttons, fields, modals…), rb/ (animated components incl.
+                       liquid-glass.tsx), portal/pdf-viewer.tsx, i18n/, admin/, portal/
 src/app/
-  login, forgot-password        public patient pages
+  login, forgot-password        public patient pages (reset form or "call the clinic",
+                                 depending on PASSWORD_RESET_REQUESTS_ENABLED)
   portal/                       patient dashboard, results, settings
+  portal/results/[id]/download  audit-logs a download, then redirects to the source PDF
   admin/login                   staff sign-in
-  admin/(console)/              dashboard, patients, results, requests, audit, settings
+  admin/(console)/              dashboard (incl. Stats), patients, results, requests, audit, settings
   admin/files/[name]            authenticated ID-photo delivery
-  api/integration/              patients + results ingest endpoints (Bearer auth)
+  api/integration/patients      patient provisioning endpoint (Bearer auth)
   api/health/                   liveness + DB check
-  portal/results/[id]/pdf       server-generated PDF report
 ```

@@ -3,9 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  ArrowUpRight,
   ClipboardList,
-  FileWarning,
   Microscope,
   Stethoscope,
   User,
@@ -17,22 +15,12 @@ import { formatDateTime } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
-import { ResultStatusBadge, ValueFlagBadge } from "@/components/ui/badge";
+import { ResultStatusBadge } from "@/components/ui/badge";
 import { FadeIn } from "@/components/rb/fade-in";
 import { BrandLockup } from "@/components/brand";
-import { ReportActions } from "./report-actions";
+import { PdfViewer } from "@/components/portal/pdf-viewer";
 
 export const metadata: Metadata = { title: "Report" };
-
-function isOpenableUrl(link: string | null): link is string {
-  if (!link) return false;
-  try {
-    const url = new URL(link);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export default async function ResultDetailPage({
   params,
@@ -43,11 +31,11 @@ export default async function ResultDetailPage({
   const { id } = await params;
   const locale = await getLocale();
   const dict = getDictionary(locale).portalResultDetail;
+  const pdfDict = getDictionary(locale).pdfViewer;
 
   const result = await db.labResult.findFirst({
     where: { id, patientDbId: session.sub },
     include: {
-      values: { orderBy: { sortOrder: "asc" } },
       patient: { select: { fullName: true, patientId: true, dateOfBirth: true, gender: true } },
     },
   });
@@ -62,9 +50,6 @@ export default async function ResultDetailPage({
     { Icon: ClipboardList, label: dict.reportNumber, value: result.reference },
   ];
 
-  const fromClinicSystem = Boolean(result.sourceLink);
-  const openable = isOpenableUrl(result.sourceLink);
-
   return (
     <div className="space-y-6">
       <FadeIn className="no-print flex flex-wrap items-center justify-between gap-4">
@@ -75,9 +60,6 @@ export default async function ResultDetailPage({
           <ArrowLeft aria-hidden className="size-4" />
           {dict.allResults}
         </Link>
-        {!fromClinicSystem && (
-          <ReportActions resultId={result.id} printLabel={dict.print} downloadLabel={dict.downloadPdf} />
-        )}
       </FadeIn>
 
       <FadeIn delay={0.08}>
@@ -119,78 +101,37 @@ export default async function ResultDetailPage({
             </dl>
           </div>
 
-          {/* Body: clinic-sourced PDF, in-progress notice, or the values table */}
+          {/* Body: clinic-sourced PDF, a not-yet-reachable notice, or an in-progress notice */}
           {fromClinicSystem ? (
-            <div className="px-6 py-10 text-center sm:px-8">
-              {openable ? (
-                <>
-                  <p className="font-semibold text-ink">{dict.clinicSourceTitle}</p>
-                  <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">{dict.clinicSourceDesc}</p>
-                  <a
-                    href={result.sourceLink!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="no-print mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-primary-strong active:scale-[0.98]"
-                  >
-                    {dict.openOnClinicSystem}
-                    <ArrowUpRight aria-hidden className="size-4" />
-                  </a>
-                </>
-              ) : (
-                <>
-                  <FileWarning aria-hidden className="mx-auto mb-3 size-8 text-warn" />
-                  <p className="font-semibold text-ink">{dict.notYetAvailableTitle}</p>
-                  <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">{dict.notYetAvailableDesc}</p>
-                  <p className="mx-auto mt-3 max-w-md break-all rounded-lg bg-canvas px-3 py-2 font-mono text-[12px] text-ink-muted">
-                    {result.sourceLink}
-                  </p>
-                </>
-              )}
-            </div>
-          ) : result.status === "PENDING" ? (
+            openable ? (
+              <div>
+                <div className="border-b border-border/70 px-6 py-4 sm:px-8">
+                  <p className="text-sm font-semibold text-ink">{dict.clinicSourceTitle}</p>
+                  <p className="mt-0.5 text-[13px] text-ink-muted">{dict.clinicSourceDesc}</p>
+                </div>
+                <PdfViewer
+                  src={result.sourceLink!}
+                  downloadHref={`/portal/results/${result.id}/download`}
+                  title={result.testName}
+                  dict={pdfDict}
+                  openLabel={dict.openOnClinicSystem}
+                  downloadLabel={dict.downloadPdf}
+                />
+              </div>
+            ) : (
+              <div className="px-6 py-10 text-center sm:px-8">
+                <FileWarning aria-hidden className="mx-auto mb-3 size-8 text-warn" />
+                <p className="font-semibold text-ink">{dict.notYetAvailableTitle}</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">{dict.notYetAvailableDesc}</p>
+                <p className="mx-auto mt-3 max-w-md break-all rounded-lg bg-canvas px-3 py-2 font-mono text-[12px] text-ink-muted">
+                  {result.sourceLink}
+                </p>
+              </div>
+            )
+          ) : (
             <div className="px-6 py-12 text-center sm:px-8">
               <p className="font-semibold text-ink">{dict.inProgressTitle}</p>
               <p className="mt-1 text-sm text-ink-muted">{dict.inProgressDesc}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-130 text-left">
-                <thead>
-                  <tr className="border-b border-border text-[12px] uppercase tracking-wider text-ink-muted">
-                    <th scope="col" className="px-6 py-3.5 font-semibold sm:px-8">{dict.analyte}</th>
-                    <th scope="col" className="px-4 py-3.5 text-right font-semibold">{dict.result}</th>
-                    <th scope="col" className="px-4 py-3.5 text-right font-semibold">{dict.referenceRange}</th>
-                    <th scope="col" className="px-6 py-3.5 text-right font-semibold sm:px-8">{dict.flag}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/70">
-                  {result.values.map((v) => (
-                    <tr
-                      key={v.id}
-                      className={v.flag === "CRITICAL" ? "bg-danger-soft/40" : undefined}
-                    >
-                      <td className="px-6 py-3.5 text-[15px] font-medium text-ink sm:px-8">
-                        {v.analyte}
-                      </td>
-                      <td className="tnum px-4 py-3.5 text-right text-[15px] font-semibold text-ink">
-                        {v.value}
-                        {v.unit && (
-                          <span className="ml-1 text-[13px] font-normal text-ink-muted">{v.unit}</span>
-                        )}
-                      </td>
-                      <td className="tnum px-4 py-3.5 text-right text-[14px] text-ink-muted">
-                        {v.refRange ?? "—"}
-                        {v.unit && v.refRange && (
-                          <span className="ml-1 text-[12px]">{v.unit}</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-3.5 text-right sm:px-8">
-                        <ValueFlagBadge flag={v.flag} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
 

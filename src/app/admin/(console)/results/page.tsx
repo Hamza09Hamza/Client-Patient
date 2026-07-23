@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
-import { getDictionary } from "@/lib/i18n/dictionaries";
+import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -76,7 +76,8 @@ export default async function AdminResultsPage({
       <FadeIn>
         <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
         <p className="mt-1 text-[15px] text-ink-muted">
-          {totalCount} report{totalCount === 1 ? "" : "s"} {dict.subtitle}
+          {t(totalCount === 1 ? dict.reportCount : dict.reportCountPlural, { count: totalCount })}{" "}
+          {dict.subtitle}
         </p>
       </FadeIn>
 

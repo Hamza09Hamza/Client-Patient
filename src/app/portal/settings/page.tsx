@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { KeyRound } from "lucide-react";
 import { requirePatient } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -7,7 +8,6 @@ import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { FadeIn } from "@/components/rb/fade-in";
-import { ChangePasswordForm } from "./change-password-form";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -63,11 +63,17 @@ export default async function SettingsPage() {
         <FadeIn delay={0.15}>
           <Card className="p-6">
             <div className="flex items-center gap-2.5">
-              <ShieldCheck aria-hidden className="size-5 text-primary" />
-              <h2 className="font-semibold text-ink">{dict.changePasswordTitle}</h2>
+              <KeyRound aria-hidden className="size-5 text-primary" />
+              <h2 className="font-semibold text-ink">{dict.resetPasswordTitle}</h2>
             </div>
-            <p className="mt-1 mb-5 text-[13px] text-ink-muted">{dict.changePasswordDesc}</p>
-            <ChangePasswordForm dict={dict} />
+            <p className="mt-1 mb-5 text-[13px] text-ink-muted">{dict.resetPasswordDesc}</p>
+            <Link
+              href="/forgot-password"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-primary-strong active:scale-[0.98]"
+            >
+              <KeyRound aria-hidden className="size-4" />
+              {dict.resetPasswordButton}
+            </Link>
           </Card>
         </FadeIn>
       </div>

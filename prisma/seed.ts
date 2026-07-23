@@ -1,131 +1,33 @@
-import { PrismaClient, ValueFlag, ResultStatus } from "@prisma/client";
+import { PrismaClient, ResultStatus } from "@prisma/client";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const db = new PrismaClient();
 
-interface AnalyteSpec {
-  analyte: string;
-  unit: string;
-  low: number;
-  high: number;
-  decimals: number;
-}
-
 interface PanelSpec {
   category: string;
   testName: string;
   specimen: string;
-  analytes: AnalyteSpec[];
 }
 
+// Reports are PDFs synced from the clinic's own system (see document-sync.ts) —
+// these panel names are just realistic labels for demo report titles, not
+// structured analyte data (there is none: the portal only shows the PDF).
 const PANELS: PanelSpec[] = [
-  {
-    category: "Hematology",
-    testName: "Complete Blood Count (CBC)",
-    specimen: "Whole blood (EDTA)",
-    analytes: [
-      { analyte: "White Blood Cells", unit: "10³/µL", low: 4.0, high: 11.0, decimals: 1 },
-      { analyte: "Red Blood Cells", unit: "10⁶/µL", low: 4.5, high: 5.9, decimals: 2 },
-      { analyte: "Hemoglobin", unit: "g/dL", low: 13.0, high: 17.0, decimals: 1 },
-      { analyte: "Hematocrit", unit: "%", low: 40, high: 52, decimals: 1 },
-      { analyte: "Platelets", unit: "10³/µL", low: 150, high: 400, decimals: 0 },
-    ],
-  },
-  {
-    category: "Biochemistry",
-    testName: "Basic Metabolic Panel",
-    specimen: "Serum",
-    analytes: [
-      { analyte: "Glucose (fasting)", unit: "mg/dL", low: 70, high: 99, decimals: 0 },
-      { analyte: "Creatinine", unit: "mg/dL", low: 0.7, high: 1.3, decimals: 2 },
-      { analyte: "Urea", unit: "mg/dL", low: 17, high: 43, decimals: 0 },
-      { analyte: "Sodium", unit: "mmol/L", low: 135, high: 145, decimals: 0 },
-      { analyte: "Potassium", unit: "mmol/L", low: 3.5, high: 5.1, decimals: 1 },
-      { analyte: "Chloride", unit: "mmol/L", low: 98, high: 107, decimals: 0 },
-    ],
-  },
-  {
-    category: "Biochemistry",
-    testName: "Lipid Profile",
-    specimen: "Serum",
-    analytes: [
-      { analyte: "Total Cholesterol", unit: "mg/dL", low: 120, high: 200, decimals: 0 },
-      { analyte: "HDL Cholesterol", unit: "mg/dL", low: 40, high: 90, decimals: 0 },
-      { analyte: "LDL Cholesterol", unit: "mg/dL", low: 50, high: 130, decimals: 0 },
-      { analyte: "Triglycerides", unit: "mg/dL", low: 50, high: 150, decimals: 0 },
-    ],
-  },
-  {
-    category: "Endocrinology",
-    testName: "Thyroid Function (TSH, FT4)",
-    specimen: "Serum",
-    analytes: [
-      { analyte: "TSH", unit: "mIU/L", low: 0.4, high: 4.0, decimals: 2 },
-      { analyte: "Free T4", unit: "ng/dL", low: 0.8, high: 1.8, decimals: 2 },
-    ],
-  },
-  {
-    category: "Biochemistry",
-    testName: "Liver Function Panel",
-    specimen: "Serum",
-    analytes: [
-      { analyte: "ALT (SGPT)", unit: "U/L", low: 7, high: 56, decimals: 0 },
-      { analyte: "AST (SGOT)", unit: "U/L", low: 10, high: 40, decimals: 0 },
-      { analyte: "Alkaline Phosphatase", unit: "U/L", low: 44, high: 147, decimals: 0 },
-      { analyte: "Total Bilirubin", unit: "mg/dL", low: 0.1, high: 1.2, decimals: 2 },
-    ],
-  },
-  {
-    category: "Endocrinology",
-    testName: "HbA1c (Glycated Hemoglobin)",
-    specimen: "Whole blood (EDTA)",
-    analytes: [{ analyte: "HbA1c", unit: "%", low: 4.0, high: 5.7, decimals: 1 }],
-  },
-  {
-    category: "Immunology",
-    testName: "C-Reactive Protein (CRP)",
-    specimen: "Serum",
-    analytes: [{ analyte: "CRP", unit: "mg/L", low: 0, high: 5, decimals: 1 }],
-  },
-  {
-    category: "Immunology",
-    testName: "Vitamin D (25-OH)",
-    specimen: "Serum",
-    analytes: [{ analyte: "25-OH Vitamin D", unit: "ng/mL", low: 30, high: 100, decimals: 0 }],
-  },
+  { category: "Hematology", testName: "Complete Blood Count (CBC)", specimen: "Whole blood (EDTA)" },
+  { category: "Biochemistry", testName: "Basic Metabolic Panel", specimen: "Serum" },
+  { category: "Biochemistry", testName: "Lipid Profile", specimen: "Serum" },
+  { category: "Endocrinology", testName: "Thyroid Function (TSH, FT4)", specimen: "Serum" },
+  { category: "Biochemistry", testName: "Liver Function Panel", specimen: "Serum" },
+  { category: "Endocrinology", testName: "HbA1c (Glycated Hemoglobin)", specimen: "Whole blood (EDTA)" },
+  { category: "Immunology", testName: "C-Reactive Protein (CRP)", specimen: "Serum" },
+  { category: "Immunology", testName: "Vitamin D (25-OH)", specimen: "Serum" },
 ];
 
 const PHYSICIANS = ["Dr. L. Mansouri", "Dr. S. Haddad", "Dr. A. Benali", "Dr. R. Cherif"];
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;
-}
-
-function buildValues(panel: PanelSpec, abnormalChance: number) {
-  return panel.analytes.map((a, i) => {
-    const span = a.high - a.low;
-    let value: number;
-    let flag: ValueFlag = ValueFlag.NORMAL;
-    const roll = Math.random();
-    if (roll < abnormalChance / 2) {
-      value = a.high + rand(0.02, 0.35) * span;
-      flag = value > a.high + 0.6 * span ? ValueFlag.CRITICAL : ValueFlag.HIGH;
-    } else if (roll < abnormalChance) {
-      value = Math.max(0, a.low - rand(0.02, 0.3) * span);
-      flag = ValueFlag.LOW;
-    } else {
-      value = rand(a.low + 0.08 * span, a.high - 0.08 * span);
-    }
-    return {
-      analyte: a.analyte,
-      value: value.toFixed(a.decimals),
-      unit: a.unit,
-      refRange: `${a.low.toFixed(a.decimals)} – ${a.high.toFixed(a.decimals)}`,
-      flag,
-      sortOrder: i,
-    };
-  });
 }
 
 async function main() {
@@ -143,7 +45,6 @@ async function main() {
 
   await db.auditLog.deleteMany();
   await db.passwordResetRequest.deleteMany();
-  await db.labResultValue.deleteMany();
   await db.labResult.deleteMany();
   await db.patient.deleteMany();
   await db.admin.deleteMany();
@@ -193,10 +94,11 @@ async function main() {
           : ResultStatus.COMPLETED;
       const reportedAt =
         status === ResultStatus.PENDING ? null : new Date(collectedAt.getTime() + rand(6, 48) * 3_600_000);
+      const reference = `LAB-${new Date(collectedAt).getFullYear()}-${accession++}`;
 
       await db.labResult.create({
         data: {
-          reference: `LAB-${new Date(collectedAt).getFullYear()}-${accession++}`,
+          reference,
           patientDbId: patient.id,
           category: panel.category,
           testName: panel.testName,
@@ -209,7 +111,10 @@ async function main() {
             Math.random() < 0.2
               ? "Sample slightly hemolyzed; values verified by repeat analysis."
               : null,
-          values: status === ResultStatus.PENDING ? undefined : { create: buildValues(panel, 0.18) },
+          // Demo reports all point at the same sample PDF so the viewer has
+          // something real to render — a genuine sync fills in real per-report links.
+          sourceRef: status === ResultStatus.PENDING ? null : `SRC-${reference}`,
+          sourceLink: status === ResultStatus.PENDING ? null : "/sample-reports/sample-report.pdf",
         },
       });
     }
@@ -243,9 +148,8 @@ async function main() {
   const counts = {
     patients: await db.patient.count(),
     results: await db.labResult.count(),
-    values: await db.labResultValue.count(),
   };
-  console.log(`Seeded: ${counts.patients} patients, ${counts.results} results, ${counts.values} values`);
+  console.log(`Seeded: ${counts.patients} patients, ${counts.results} results`);
   console.log("Demo logins — patient: PAT-2026-0001 / Demo-Pass-2026 — admin: admin / ClinicAdmin!2026");
 }
 

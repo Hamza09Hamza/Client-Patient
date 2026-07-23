@@ -41,8 +41,9 @@ export default async function AdminSettingsPage() {
               <h2 className="font-semibold text-ink">{dict.integrationTitle}</h2>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-              External clinic systems can provision patients and push results through the
-              integration API. Requests must carry the shared key as a Bearer token in the{" "}
+              External clinic systems provision patients through the integration API — reports
+              themselves arrive separately via clinic source sync (below). Requests must carry
+              the shared key as a Bearer token in the{" "}
               <code className="rounded bg-canvas px-1 py-0.5 text-[12px] font-semibold text-primary-deep">
                 Authorization
               </code>{" "}
@@ -67,12 +68,6 @@ export default async function AdminSettingsPage() {
                   Verifies or creates a patient by ID, returns freshly generated
                   credentials, and — if the clinic source is configured below — automatically
                   pulls that patient&apos;s document history.
-                </dd>
-              </div>
-              <div className="rounded-xl border border-border bg-canvas p-3">
-                <dt className="font-semibold text-ink">POST /api/integration/results</dt>
-                <dd className="mt-0.5 text-ink-muted">
-                  Pushes a validated laboratory report for an existing patient.
                 </dd>
               </div>
             </dl>

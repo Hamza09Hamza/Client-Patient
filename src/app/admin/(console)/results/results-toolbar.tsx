@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FilePlus2, Loader2, Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { SelectField } from "@/components/ui/select";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 
@@ -78,14 +77,6 @@ export function ResultsToolbar({ dict }: { dict: Dictionary }) {
         <option value="COMPLETED">{statuses.statusCompleted}</option>
         <option value="REVIEWED">{statuses.statusReviewed}</option>
       </SelectField>
-
-      <Link
-        href="/admin/results/new"
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 select-none hover:bg-primary-strong active:scale-[0.98]"
-      >
-        <FilePlus2 aria-hidden className="size-4" />
-        {admin.recordResult}
-      </Link>
     </div>
   );
 }

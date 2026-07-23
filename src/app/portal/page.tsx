@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CalendarClock, FileCheck2, FlaskConical, Hourglass } from "lucide-react";
+import { ArrowRight, CalendarClock, FileCheck2, FlaskConical, Hourglass } from "lucide-react";
 import { requirePatient } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { daysAgo, formatDate } from "@/lib/format";
@@ -26,7 +26,7 @@ export default async function PortalHomePage() {
   const monthAgo = daysAgo(30);
   const dict = getDictionary(await getLocale()).portalHome;
 
-  const [total, recentCount, pendingCount, latest, criticalRecent] = await Promise.all([
+  const [total, recentCount, pendingCount, latest] = await Promise.all([
     db.labResult.count({ where: { patientDbId: session.sub } }),
     db.labResult.count({ where: { patientDbId: session.sub, collectedAt: { gte: monthAgo } } }),
     db.labResult.count({ where: { patientDbId: session.sub, status: "PENDING" } }),
@@ -34,13 +34,6 @@ export default async function PortalHomePage() {
       where: { patientDbId: session.sub },
       orderBy: { collectedAt: "desc" },
       take: 5,
-      include: { _count: { select: { values: { where: { flag: { not: "NORMAL" } } } } } },
-    }),
-    db.labResultValue.count({
-      where: {
-        flag: "CRITICAL",
-        result: { patientDbId: session.sub, collectedAt: { gte: monthAgo } },
-      },
     }),
   ]);
 
@@ -61,21 +54,6 @@ export default async function PortalHomePage() {
         </h1>
         <p className="mt-1 text-[15px] text-ink-muted">{dict.subtitle}</p>
       </FadeIn>
-
-      {criticalRecent > 0 && (
-        <FadeIn delay={0.05}>
-          <div
-            role="alert"
-            className="flex items-start gap-3 rounded-2xl border border-danger/25 bg-danger-soft p-4"
-          >
-            <AlertTriangle aria-hidden className="mt-0.5 size-5 shrink-0 text-danger" />
-            <div>
-              <p className="font-semibold text-danger">{dict.criticalAlertTitle}</p>
-              <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{dict.criticalAlertText}</p>
-            </div>
-          </div>
-        </FadeIn>
-      )}
 
       {/* Stat tiles */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -134,7 +112,6 @@ export default async function PortalHomePage() {
                     category: r.category,
                     status: r.status,
                     collectedAt: r.collectedAt,
-                    abnormalCount: r._count.values,
                   }}
                 />
               ))}

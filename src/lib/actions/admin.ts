@@ -7,7 +7,6 @@ import { requireAdmin } from "@/lib/dal";
 import { generatePassword, verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
 import { syncPatientDocumentsCore } from "@/lib/document-sync";
-import type { ValueFlag } from "@prisma/client";
 
 export interface AdminActionState {
   ok?: boolean;
@@ -192,108 +191,8 @@ export async function togglePatientStatus(
 }
 
 // ---------- Lab results ----------
-
-const VALUE_FLAGS: ValueFlag[] = ["NORMAL", "LOW", "HIGH", "CRITICAL"];
-
-const resultSchema = z.object({
-  patientDbId: z.string().min(1, "Choose a patient"),
-  category: z.string().trim().min(2, "Enter a category").max(80),
-  testName: z.string().trim().min(2, "Enter the test name").max(160),
-  specimen: z.string().trim().max(80).or(z.literal("")),
-  orderingPhysician: z.string().trim().max(120).or(z.literal("")),
-  collectedAt: z.string().min(1, "Set the collection date"),
-  status: z.enum(["PENDING", "COMPLETED", "REVIEWED"]),
-  notes: z.string().trim().max(2000).or(z.literal("")),
-});
-
-export async function createResult(
-  _prev: AdminActionState,
-  formData: FormData,
-): Promise<AdminActionState> {
-  const admin = await requireAdmin();
-
-  const parsed = resultSchema.safeParse({
-    patientDbId: formData.get("patientDbId"),
-    category: formData.get("category"),
-    testName: formData.get("testName"),
-    specimen: formData.get("specimen") ?? "",
-    orderingPhysician: formData.get("orderingPhysician") ?? "",
-    collectedAt: formData.get("collectedAt"),
-    status: formData.get("status"),
-    notes: formData.get("notes") ?? "",
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const data = parsed.data;
-
-  const collectedAt = new Date(data.collectedAt);
-  if (Number.isNaN(collectedAt.getTime())) return { error: "The collection date is invalid." };
-
-  const patient = await db.patient.findUnique({ where: { id: data.patientDbId } });
-  if (!patient) return { error: "Patient not found." };
-
-  // dynamic analyte rows: values[i][field]
-  const values: {
-    analyte: string;
-    value: string;
-    unit: string | null;
-    refRange: string | null;
-    flag: ValueFlag;
-    sortOrder: number;
-  }[] = [];
-  for (let i = 0; ; i++) {
-    const analyte = formData.get(`values[${i}][analyte]`);
-    if (analyte === null) break;
-    const value = String(formData.get(`values[${i}][value]`) ?? "").trim();
-    const name = String(analyte).trim();
-    if (!name && !value) continue; // skip fully empty rows
-    if (!name || !value) {
-      return { error: `Row ${i + 1}: both analyte name and value are required.` };
-    }
-    const flagRaw = String(formData.get(`values[${i}][flag]`) ?? "NORMAL") as ValueFlag;
-    values.push({
-      analyte: name,
-      value,
-      unit: String(formData.get(`values[${i}][unit]`) ?? "").trim() || null,
-      refRange: String(formData.get(`values[${i}][refRange]`) ?? "").trim() || null,
-      flag: VALUE_FLAGS.includes(flagRaw) ? flagRaw : "NORMAL",
-      sortOrder: values.length,
-    });
-  }
-  if (data.status !== "PENDING" && values.length === 0) {
-    return { error: "Add at least one analyte value, or set the status to In progress." };
-  }
-
-  // sequential accession number per year
-  const year = collectedAt.getFullYear();
-  const last = await db.labResult.findFirst({
-    where: { reference: { startsWith: `LAB-${year}-` } },
-    orderBy: { reference: "desc" },
-    select: { reference: true },
-  });
-  const nextNum = last ? parseInt(last.reference.split("-")[2], 10) + 1 : 1000;
-  const reference = `LAB-${year}-${nextNum}`;
-
-  await db.labResult.create({
-    data: {
-      reference,
-      patientDbId: patient.id,
-      category: data.category,
-      testName: data.testName,
-      specimen: data.specimen || null,
-      orderingPhysician: data.orderingPhysician || null,
-      status: data.status,
-      collectedAt,
-      reportedAt: data.status === "PENDING" ? null : new Date(),
-      notes: data.notes || null,
-      values: values.length ? { create: values } : undefined,
-    },
-  });
-
-  await audit("ADMIN", admin.username, "RESULT_CREATED", reference, `patient=${patient.patientId}`);
-  revalidatePath("/admin/results");
-  revalidatePath(`/admin/patients/${patient.id}`);
-  return { ok: true, patientId: reference };
-}
+// Results are only ever created by syncing from the clinic's own system (see
+// document-sync.ts) — admins can browse and delete, not manually record one.
 
 export async function deleteResult(
   _prev: AdminActionState,

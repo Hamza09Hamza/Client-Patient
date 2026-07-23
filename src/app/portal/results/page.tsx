@@ -76,7 +76,6 @@ export default async function ResultsPage({
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { _count: { select: { values: { where: { flag: { not: "NORMAL" } } } } } },
     }),
     db.labResult.count({ where }),
     db.labResult.findMany({
@@ -127,7 +126,6 @@ export default async function ResultsPage({
                     category: r.category,
                     status: r.status,
                     collectedAt: r.collectedAt,
-                    abnormalCount: r._count.values,
                   }}
                 />
               ))}

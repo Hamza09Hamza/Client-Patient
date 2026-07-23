@@ -20,23 +20,7 @@ const bodySchema = z.object({
   gender: z.string().trim().max(20).optional(),
 });
 
-/**
- * Provision (or re-credential) a patient from the clinic's internal system.
- *
- * - If the patient ID is unknown, a patient record is created (fullName required)
- *   and credentials are generated.
- * - If the patient ID already exists, a fresh password is generated, replacing
- *   the previous one.
- *
- * The generated password is returned here and also stored as-is (see the
- * README security section for why this system stores credentials in plaintext).
- *
- * If CLINIC_SOURCE_BASE_URL / CLINIC_SOURCE_SHARED_SECRET are configured, this
- * also pulls the patient's document history from the clinic's own system right
- * away (see src/lib/clinic-source.ts) and includes the count in the response.
- * A sync failure never fails the provisioning call — credentials are still
- * returned, and the admin console has a manual "Sync" retry.
- */
+
 export async function POST(request: NextRequest) {
   const denied = checkIntegrationAuth(request);
   if (denied) return denied;

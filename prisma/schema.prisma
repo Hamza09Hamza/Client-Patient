@@ -18,13 +18,6 @@ enum ResultStatus {
   REVIEWED
 }
 
-enum ValueFlag {
-  NORMAL
-  LOW
-  HIGH
-  CRITICAL
-}
-
 enum ResetRequestStatus {
   PENDING
   APPROVED
@@ -90,34 +83,19 @@ model LabResult {
   collectedAt       DateTime
   reportedAt        DateTime?
   notes             String?
-  // set when this report was synced from the clinic's own system (SERVER A)
-  // instead of entered by an admin — see src/lib/clinic-source.ts. When present,
-  // the portal shows a link to the original PDF instead of the values table.
-  sourceRef         String? // SERVER A's document id, for idempotent re-sync
-  sourceLink        String? // raw link/path as given by SERVER A (URL or local path)
+  // set when this report arrived as a PDF pushed from the clinic's own system
+  // (SERVER A) instead of entered by an admin — see
+  // src/app/api/integration/reports/route.ts. When present, the portal shows
+  // the PDF viewer instead of an "in progress" notice.
+  sourceRef         String? // SERVER A's document id, for idempotent re-push
+  pdfPath           String? // filename under uploads/reports/ — never a URL, always local
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
-
-  values LabResultValue[]
 
   @@unique([patientDbId, sourceRef])
   @@index([patientDbId, collectedAt(sort: Desc)])
   @@index([category])
   @@index([status])
-}
-
-model LabResultValue {
-  id          String    @id @default(cuid())
-  result      LabResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
-  resultId    String
-  analyte     String // e.g. Hemoglobin
-  value       String // kept as string to allow "Positive", "<0.01", etc.
-  unit        String?
-  refRange    String? // display form, e.g. "13.0 – 17.0"
-  flag        ValueFlag @default(NORMAL)
-  sortOrder   Int       @default(0)
-
-  @@index([resultId])
 }
 
 model PasswordResetRequest {

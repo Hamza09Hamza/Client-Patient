@@ -31,6 +31,11 @@ export function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 86_400_000);
 }
 
+/** Date n minutes in the past — kept here so component render bodies stay pure. */
+export function minutesAgo(minutes: number): Date {
+  return new Date(Date.now() - minutes * 60_000);
+}
+
 /** "2 hours ago" style relative time for activity feeds. */
 export function formatRelative(date: Date): string {
   const seconds = Math.round((Date.now() - date.getTime()) / 1000);

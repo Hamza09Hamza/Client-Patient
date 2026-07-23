@@ -2,8 +2,6 @@ import Link from "next/link";
 import { ChevronRight, FlaskConical } from "lucide-react";
 import { ResultStatusBadge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
-import { getLocale } from "@/lib/i18n/locale";
-import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { ResultStatus } from "@prisma/client";
 
 export interface ResultRowData {
@@ -13,11 +11,9 @@ export interface ResultRowData {
   category: string;
   status: ResultStatus;
   collectedAt: Date;
-  abnormalCount?: number;
 }
 
-export async function ResultRow({ result }: { result: ResultRowData }) {
-  const dict = getDictionary(await getLocale()).portalResults;
+export function ResultRow({ result }: { result: ResultRowData }) {
   return (
     <Link
       href={`/portal/results/${result.id}`}
@@ -34,11 +30,6 @@ export async function ResultRow({ result }: { result: ResultRowData }) {
           {result.category} · {result.reference} · {formatDate(result.collectedAt)}
         </span>
       </span>
-      {result.abnormalCount != null && result.abnormalCount > 0 && (
-        <span className="hidden shrink-0 rounded-full bg-warn-soft px-2.5 py-1 text-xs font-semibold text-warn sm:block">
-          {result.abnormalCount} {dict.flaggedSuffix}
-        </span>
-      )}
       <span className="shrink-0">
         <ResultStatusBadge status={result.status} />
       </span>

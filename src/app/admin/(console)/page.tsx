@@ -3,21 +3,31 @@ import Link from "next/link";
 import {
   Activity,
   ArrowRight,
-  FilePlus2,
+  Download,
   FlaskConical,
   KeyRound,
+  TrendingUp,
   UserPlus,
   Users,
+  Wifi,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { formatRelative } from "@/lib/format";
+import { daysAgo, formatRelative, minutesAgo } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CountUp } from "@/components/rb/count-up";
 import { FadeIn } from "@/components/rb/fade-in";
+import { Sparkline } from "@/components/admin/sparkline";
+
+const ONLINE_WINDOW_MINUTES = 15;
+const TREND_DAYS = 30;
+
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 export const metadata: Metadata = { title: "Admin dashboard" };
 
@@ -71,16 +81,53 @@ export default async function AdminDashboardPage() {
   const session = await requireAdmin();
   const locale = await getLocale();
   const dict = getDictionary(locale).adminDashboard;
+  const statsDict = getDictionary(locale).adminStats;
   const actionLabels = locale === "fr" ? ACTION_LABELS_FR : ACTION_LABELS_EN;
 
-  const [patientCount, activeCount, resultCount, pendingRequests, recentActivity] =
-    await Promise.all([
-      db.patient.count(),
-      db.patient.count({ where: { status: "ACTIVE" } }),
-      db.labResult.count(),
-      db.passwordResetRequest.count({ where: { status: "PENDING" } }),
-      db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
-    ]);
+  const onlineSince = minutesAgo(ONLINE_WINDOW_MINUTES);
+  const trendSince = daysAgo(TREND_DAYS - 1);
+  trendSince.setUTCHours(0, 0, 0, 0);
+
+  const [
+    patientCount,
+    activeCount,
+    resultCount,
+    pendingRequests,
+    recentActivity,
+    totalDownloads,
+    downloaders,
+    onlineNow,
+    recentLogins,
+  ] = await Promise.all([
+    db.patient.count(),
+    db.patient.count({ where: { status: "ACTIVE" } }),
+    db.labResult.count(),
+    db.passwordResetRequest.count({ where: { status: "PENDING" } }),
+    db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+    db.auditLog.count({ where: { action: "RESULT_DOWNLOADED" } }),
+    db.auditLog.findMany({
+      where: { action: "RESULT_DOWNLOADED" },
+      distinct: ["actorId"],
+      select: { actorId: true },
+    }),
+    db.patient.count({ where: { status: "ACTIVE", lastLoginAt: { gte: onlineSince } } }),
+    db.auditLog.findMany({
+      where: { action: "LOGIN", actorType: "PATIENT", createdAt: { gte: trendSince } },
+      select: { actorId: true, createdAt: true },
+    }),
+  ]);
+
+  // Daily unique-patient login counts for the trailing 30 days (incl. days with zero).
+  const days: string[] = [];
+  for (let i = TREND_DAYS - 1; i >= 0; i--) {
+    days.push(dayKey(daysAgo(i)));
+  }
+  const perDay = new Map<string, Set<string>>(days.map((d) => [d, new Set<string>()]));
+  for (const row of recentLogins) {
+    perDay.get(dayKey(row.createdAt))?.add(row.actorId);
+  }
+  const dailyCounts = days.map((d) => perDay.get(d)!.size);
+  const dailyAverage = dailyCounts.reduce((a, b) => a + b, 0) / dailyCounts.length;
 
   const stats = [
     { label: dict.registeredPatients, value: patientCount, Icon: Users, context: dict.registeredPatientsContext },
@@ -91,7 +138,6 @@ export default async function AdminDashboardPage() {
 
   const quickActions = [
     { href: "/admin/patients?new=1", label: dict.addPatient, Icon: UserPlus },
-    { href: "/admin/results/new", label: dict.recordResult, Icon: FilePlus2 },
     { href: "/admin/requests", label: dict.reviewRequests, Icon: KeyRound },
   ];
 
@@ -190,6 +236,70 @@ export default async function AdminDashboardPage() {
             )}
           </Card>
         </FadeIn>
+      </div>
+
+      <div>
+        <FadeIn delay={0.32}>
+          <h2 className="text-lg font-bold tracking-tight text-ink">{statsDict.title}</h2>
+          <p className="mt-0.5 text-sm text-ink-muted">{statsDict.subtitle}</p>
+        </FadeIn>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <FadeIn delay={0.36}>
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink-muted">{statsDict.totalDownloads}</span>
+                <Download aria-hidden className="size-4.5 text-primary" />
+              </div>
+              <p className="mt-2 text-[32px] font-bold leading-none tracking-tight text-ink">
+                <CountUp to={totalDownloads} delay={0.4} />
+              </p>
+              <p className="mt-2 text-[13px] text-ink-faint">{statsDict.totalDownloadsContext}</p>
+            </Card>
+          </FadeIn>
+
+          <FadeIn delay={0.42}>
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink-muted">{statsDict.uniqueDownloaders}</span>
+                <Users aria-hidden className="size-4.5 text-primary" />
+              </div>
+              <p className="mt-2 text-[32px] font-bold leading-none tracking-tight text-ink">
+                <CountUp to={downloaders.length} delay={0.46} />
+              </p>
+              <p className="mt-2 text-[13px] text-ink-faint">{statsDict.uniqueDownloadersContext}</p>
+            </Card>
+          </FadeIn>
+
+          <FadeIn delay={0.48}>
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink-muted">{statsDict.onlineNow}</span>
+                <Wifi aria-hidden className="size-4.5 text-primary" />
+              </div>
+              <p className="mt-2 text-[32px] font-bold leading-none tracking-tight text-ink">
+                <CountUp to={onlineNow} delay={0.52} />
+              </p>
+              <p className="mt-2 text-[13px] text-ink-faint">{statsDict.onlineNowContext}</p>
+            </Card>
+          </FadeIn>
+
+          <FadeIn delay={0.54}>
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink-muted">{statsDict.dailyAverage}</span>
+                <TrendingUp aria-hidden className="size-4.5 text-primary" />
+              </div>
+              <p className="tnum mt-2 text-[32px] font-bold leading-none tracking-tight text-ink">
+                {dailyAverage.toFixed(1)}
+              </p>
+              <p className="mt-1 text-[13px] text-ink-faint">{statsDict.dailyAverageContext}</p>
+              <div className="mt-2">
+                <Sparkline values={dailyCounts} />
+              </div>
+            </Card>
+          </FadeIn>
+        </div>
       </div>
     </div>
   );

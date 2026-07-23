@@ -1,9 +1,12 @@
 # Integration API
 
 This is the contract for the clinic's internal systems (LIS/HIS, registration desk
-software, etc.) to talk to the patient portal: provision patient accounts and push
-laboratory reports. It is **not** used by the website itself — the patient portal and
-admin console authenticate with cookie sessions, not this API.
+software, etc.) to talk to the patient portal: provision patient accounts and
+credentials. It is **not** used by the website itself — the patient portal and
+admin console authenticate with cookie sessions, not this API. Laboratory reports
+themselves are never pushed through this API — they arrive exclusively as PDFs via
+the [clinic source contract](#clinic-source-contract-server-a) below, which this app
+pulls on its own after a patient is provisioned.
 
 Base URL: `https://<your-domain>` (or `http://localhost:3000` in development).
 
@@ -18,7 +21,7 @@ Authorization: Bearer <INTEGRATION_API_KEY>
 
 The key is configured on the server via the `INTEGRATION_API_KEY` environment
 variable (see `.env`). There is no per-client key — anyone with the key can call
-both endpoints, so treat it like a database credential:
+this endpoint, so treat it like a database credential:
 
 - Never put it in client-side code, mobile apps, or URLs.
 - Send it only over HTTPS in production.
@@ -118,77 +121,11 @@ from clinic system** in the console.
 | `404` | `{"error":"Unknown patientId — include fullName to create the patient."}` | New ID without a name |
 | `422` | `{"error":"Invalid payload.","issues":[...]}` | Failed field validation |
 
-## `POST /api/integration/results`
-
-Pushes one validated laboratory report for an **existing** patient. The report
-number (e.g. `LAB-2026-1071`) is assigned automatically and the report becomes
-visible in the patient's portal immediately.
-
-### Request
-
-```http
-POST /api/integration/results
-Authorization: Bearer <INTEGRATION_API_KEY>
-Content-Type: application/json
-
-{
-  "patientId": "PAT-2026-0200",
-  "category": "Hematology",
-  "testName": "Complete Blood Count (CBC)",
-  "specimen": "Whole blood (EDTA)",
-  "orderingPhysician": "Dr. S. Haddad",
-  "collectedAt": "2026-07-21T09:30:00Z",
-  "status": "COMPLETED",
-  "notes": "Sample slightly hemolyzed; values verified by repeat analysis.",
-  "values": [
-    { "analyte": "Hemoglobin", "value": "14.1", "unit": "g/dL", "refRange": "13.0 - 17.0", "flag": "NORMAL" },
-    { "analyte": "Platelets", "value": "120", "unit": "10^3/uL", "refRange": "150 - 400", "flag": "LOW" }
-  ]
-}
-```
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `patientId` | string | yes | Must already exist (create it first via the endpoint above) |
-| `category` | string | yes | 2–80 chars, e.g. `Hematology`, `Biochemistry` |
-| `testName` | string | yes | 2–160 chars |
-| `specimen` | string | no | e.g. `Serum`, `Whole blood (EDTA)` |
-| `orderingPhysician` | string | no | max 120 chars |
-| `collectedAt` | string | yes | ISO 8601 datetime (`2026-07-21T09:30:00Z`) or date (`2026-07-21`) |
-| `reportedAt` | string | no | ISO 8601 datetime; defaults to now when `status` isn't `PENDING` |
-| `status` | `"PENDING" \| "COMPLETED" \| "REVIEWED"` | no | defaults to `COMPLETED` |
-| `notes` | string | no | max 2000 chars |
-| `values` | array | no* | see below. *Required (min 1) unless `status` is `PENDING` |
-
-Each entry in `values`:
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `analyte` | string | yes | e.g. `Hemoglobin` |
-| `value` | string | yes | kept as a string to allow `"Positive"`, `"<0.01"`, etc. |
-| `unit` | string | no | e.g. `g/dL` |
-| `refRange` | string | no | display form, e.g. `13.0 - 17.0` |
-| `flag` | `"NORMAL" \| "LOW" \| "HIGH" \| "CRITICAL"` | no | defaults to `NORMAL` |
-
-### Response — `201 Created`
-
-```json
-{ "reference": "LAB-2026-1071", "patientId": "PAT-2026-0200", "status": "COMPLETED" }
-```
-
-### Error responses
-
-| Status | Body | Cause |
-|---|---|---|
-| `404` | `{"error":"Unknown patientId — provision the patient first via /api/integration/patients."}` | Patient doesn't exist |
-| `422` | `{"error":"A completed report needs at least one value (or send status PENDING)."}` | Non-pending report with no values |
-| `422` | `{"error":"Invalid payload.","issues":[...]}` | Failed field validation |
-
 ## Rate limits
 
-60 requests/minute per source IP, shared across both endpoints. Exceeding it
-returns `429` with a `Retry-After` header (seconds until the window resets). If
-your integration needs a higher ceiling, raise it in `src/lib/integration-auth.ts`.
+60 requests/minute per source IP. Exceeding it returns `429` with a `Retry-After`
+header (seconds until the window resets). If your integration needs a higher
+ceiling, raise it in `src/lib/integration-auth.ts`.
 
 ## Examples
 
@@ -202,18 +139,6 @@ curl -X POST https://your-domain/api/integration/patients \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{"patientId":"PAT-2026-0200","fullName":"Jane Doe","email":"jane@example.com"}'
-
-# Push a result
-curl -X POST https://your-domain/api/integration/results \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "patientId":"PAT-2026-0200",
-        "category":"Hematology",
-        "testName":"CBC",
-        "collectedAt":"2026-07-21",
-        "values":[{"analyte":"Hemoglobin","value":"14.1","unit":"g/dL","refRange":"13.0 - 17.0","flag":"NORMAL"}]
-      }'
 ```
 
 ### Node.js
@@ -299,9 +224,8 @@ history. Two systems are involved:
    | `physician` | no | |
    | `notes` | no | |
 
-4. SERVER B stores each document as a report in the patient's history (alongside any
-   manually entered results) and shows the patient a **"View report" / "Open report"**
-   button pointing at `link`.
+4. SERVER B stores each document as a report in the patient's history and shows the
+   patient a custom-built PDF viewer pointing at `link`.
 
 ### About `link` — URL vs. local path
 
@@ -322,9 +246,9 @@ separate services, so a local Windows path from SERVER A's machine has no meanin
 SERVER B or to a patient's browser. If SERVER A and SERVER B end up co-located on the
 same host with a shared filesystem, or SERVER A adds a proper file-serving endpoint,
 extending this is a contained change in two places: `isOpenableUrl()` in
-`src/app/portal/results/[id]/page.tsx` (what counts as "openable") and
-`fetchPatientDocuments()` in `src/lib/clinic-source.ts` (how the document index is
-fetched) — nothing else in the app needs to change.
+`src/lib/pdf-link.ts` (what counts as "openable") and `fetchPatientDocuments()` in
+`src/lib/clinic-source.ts` (how the document index is fetched) — nothing else in
+the app needs to change.
 
 ### Error handling
 

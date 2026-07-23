@@ -10,6 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { passwordResetRequestsEnabled } from "@/lib/feature-flags";
 
 export interface ResetRequestState {
   ok?: boolean;
@@ -28,6 +29,9 @@ export async function submitResetRequest(
   formData: FormData,
 ): Promise<ResetRequestState> {
   const dict = getDictionary(await getLocale()).forgotPassword;
+  if (!passwordResetRequestsEnabled()) {
+    return { error: dict.disabledDesc };
+  }
   const schema = z.object({
     patientId: z.string().trim().min(3, dict.enterPatientId).max(100),
     email: z.string().trim().email(dict.enterEmail).max(200),
