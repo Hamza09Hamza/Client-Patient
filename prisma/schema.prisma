@@ -18,14 +18,7 @@ enum ResultStatus {
   REVIEWED
 }
 
-enum ResetRequestStatus {
-  PENDING
-  APPROVED
-  DENIED
-}
-
 enum ActorType {
-  ADMIN
   PATIENT
   SYSTEM
 }
@@ -39,10 +32,12 @@ model Patient {
   dateOfBirth   DateTime?
   gender        String?
   status        PatientStatus @default(ACTIVE)
-  // stored in plaintext by product decision (admins must be able to view/recall
-  // credentials) — see docs/API.md and README security section for the tradeoff
-  password      String
-  // set when an admin regenerates credentials; cleared on first login
+  // scrypt hash ("salt:hash", see src/lib/password.ts) — the plaintext is
+  // returned exactly once, in the API response at generation/regeneration
+  // time (POST /api/integration/patients), for the clinic's own system
+  // (SERVER A) to retain; it is never stored or retrievable here again
+  passwordHash  String
+  // set when a password is (re)generated; cleared on first login
   mustChangePassword Boolean  @default(false)
   lastLoginAt   DateTime?
   // human-readable OS/browser/device parsed from the User-Agent at last login,
@@ -53,21 +48,8 @@ model Patient {
   updatedAt     DateTime      @updatedAt
 
   results       LabResult[]
-  resetRequests PasswordResetRequest[]
 
   @@index([fullName])
-}
-
-model Admin {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  fullName  String
-  // plaintext by product decision — see docs/API.md and README security section
-  password  String
-  lastLoginAt     DateTime?
-  lastLoginDevice String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model LabResult {
@@ -83,14 +65,15 @@ model LabResult {
   collectedAt       DateTime
   reportedAt        DateTime?
   notes             String?
-  // set when this report arrived as a PDF pushed from the clinic's own system
-  // (SERVER A) instead of entered by an admin — see
-  // src/app/api/integration/reports/route.ts. When present, the portal shows
-  // the PDF viewer instead of an "in progress" notice.
+  // set once this report's PDF arrives, pushed from the clinic's own system
+  // (SERVER A) — see src/app/api/integration/reports/route.ts. When present,
+  // the portal shows the PDF viewer instead of an "in progress" notice.
   sourceRef         String? // SERVER A's document id, for idempotent re-push
   pdfPath           String? // filename under uploads/reports/ — never a URL, always local
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+
+  shareGrants       ReportShareGrant[]
 
   @@unique([patientDbId, sourceRef])
   @@index([patientDbId, collectedAt(sort: Desc)])
@@ -98,29 +81,30 @@ model LabResult {
   @@index([status])
 }
 
-model PasswordResetRequest {
-  id         String             @id @default(cuid())
-  // patient may not be resolvable if the ID typed at submission is wrong,
-  // so we keep the raw submitted ID alongside the optional relation
-  submittedPatientId String
-  patient    Patient?           @relation(fields: [patientDbId], references: [id], onDelete: SetNull)
-  patientDbId String?
-  email      String
-  note       String
-  idPhotoPath String // stored under /uploads, served through an authenticated route
-  status     ResetRequestStatus @default(PENDING)
-  reviewedBy String? // admin username
-  reviewNote String?
-  reviewedAt DateTime?
-  createdAt  DateTime           @default(now())
+// A scoped, revocable bearer grant for viewing exactly one report without a
+// patient login — minted when a report is delivered (never for a bulk sync)
+// and handed out as a QR code. The raw secret is never stored, only its hash
+// (see src/lib/report-share.ts) — a fresh QR can't be re-derived from this
+// row later, only a brand-new grant can be minted.
+model ReportShareGrant {
+  id              String    @id @default(cuid())
+  publicId        String    @unique // short id in the /r/{publicId} URL
+  result          LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+  labResultId     String
+  tokenHash       String // sha256 hex of the opaque secret carried in the QR URL fragment
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  redemptionCount Int       @default(0)
+  createdAt       DateTime  @default(now())
+  lastAccessedAt  DateTime?
 
-  @@index([status, createdAt(sort: Desc)])
+  @@index([labResultId])
 }
 
 model AuditLog {
   id        String    @id @default(cuid())
   actorType ActorType
-  actorId   String // admin username / patient ID / "integration"
+  actorId   String // patient ID / "integration" / "seed"
   action    String // e.g. PATIENT_CREATED, PASSWORD_REGENERATED, LOGIN, RESULT_VIEWED
   target    String? // e.g. patient ID or result reference the action applies to
   detail    String?

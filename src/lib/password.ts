@@ -1,4 +1,8 @@
-import { randomInt, timingSafeEqual } from "crypto";
+import { randomInt, randomBytes, timingSafeEqual, scrypt as scryptCallback } from "crypto";
+import { promisify } from "util";
+
+const scrypt = promisify(scryptCallback);
+const SCRYPT_KEYLEN = 64;
 
 // Unambiguous alphabet: no 0/O, 1/l/I, or symbols that get mangled when
 // credentials are read over the phone or copied from a printout.
@@ -31,17 +35,25 @@ export function generatePassword(): string {
 }
 
 /**
- * Constant-time comparison against the stored plaintext password, so a
- * failed login can't be timed to leak how many leading characters matched.
+ * Hashes a password for storage: scrypt with a random 16-byte salt, encoded
+ * as "salt:hash" (both hex) so the salt travels with the hash in a single
+ * column. The plaintext this was generated from is only ever available in
+ * memory right here, at generation time — capture and return it to the
+ * caller then, because it can never be recovered from the stored hash
+ * afterward (see AGENTS.md and docs/API.md).
  */
-export function verifyPassword(submitted: string, stored: string): boolean {
-  const a = Buffer.from(submitted);
-  const b = Buffer.from(stored);
-  if (a.length !== b.length) {
-    // still run a comparison of equal length so the branch above doesn't
-    // itself become a length oracle
-    timingSafeEqual(Buffer.alloc(b.length), Buffer.alloc(b.length));
-    return false;
-  }
-  return timingSafeEqual(a, b);
+export async function hashPassword(plain: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const derived = (await scrypt(plain, salt, SCRYPT_KEYLEN)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
+
+/** Constant-time verification against a "salt:hash" value from hashPassword. */
+export async function verifyPasswordHash(submitted: string, stored: string): Promise<boolean> {
+  const [salt, hashHex] = stored.split(":");
+  if (!salt || !hashHex) return false;
+  const expected = Buffer.from(hashHex, "hex");
+  const derived = (await scrypt(submitted, salt, expected.length)) as Buffer;
+  if (derived.length !== expected.length) return false;
+  return timingSafeEqual(derived, expected);
 }

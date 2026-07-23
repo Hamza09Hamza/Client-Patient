@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Clock3, FileText, ShieldCheck } from "lucide-react";
 import { Aurora } from "@/components/rb/aurora";
 import { SplitText } from "@/components/rb/split-text";
@@ -11,7 +10,18 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+// The one page in this app worth search engines finding — everything else
+// inherits a site-wide noindex default from the root layout. See src/app/robots.ts.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const dict = getDictionary(locale).login;
+  return {
+    title: dict.signInButton,
+    description: dict.heroSubtitle,
+    robots: { index: true, follow: true },
+    alternates: { canonical: "/login" },
+  };
+}
 
 export default async function LoginPage() {
   const locale = await getLocale();
@@ -82,18 +92,6 @@ export default async function LoginPage() {
             <LoginForm dict={dict.login} />
           </FadeIn>
         </div>
-
-        <FadeIn delay={0.4} className="absolute bottom-6 px-5 text-center">
-          <p className="text-[13px] text-ink-faint">
-            {dict.login.staffLinkText}{" "}
-            <Link
-              href="/admin/login"
-              className="font-medium text-ink-muted underline-offset-4 hover:text-primary hover:underline"
-            >
-              {dict.login.staffLink}
-            </Link>
-          </p>
-        </FadeIn>
       </section>
     </main>
   );

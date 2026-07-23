@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { verifyPassword } from "@/lib/password";
+import { verifyPasswordHash } from "@/lib/password";
 import { createSession, destroySession, getSession } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
@@ -51,7 +51,7 @@ export async function patientLogin(
   }
 
   const patient = await db.patient.findUnique({ where: { patientId: username } });
-  if (!patient || !verifyPassword(password, patient.password)) {
+  if (!patient || !(await verifyPasswordHash(password, patient.passwordHash))) {
     await audit("PATIENT", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
     return { error: dict.genericError };
   }
@@ -74,55 +74,11 @@ export async function patientLogin(
   redirect("/portal");
 }
 
-export async function adminLogin(
-  _prev: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const dict = getDictionary(await getLocale()).login;
-  const credentialsSchema = z.object({
-    username: z.string().trim().min(1, dict.enterUsername).max(100),
-    password: z.string().min(1, dict.enterPassword).max(200),
-  });
-
-  const parsed = credentialsSchema.safeParse({
-    username: formData.get("username"),
-    password: formData.get("password"),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { username, password } = parsed.data;
-
-  const ip = await clientIp();
-  const limited = rateLimit(`admin-login:${ip}`, 5, 300);
-  if (!limited.allowed) {
-    return { error: t(dict.rateLimitError, { minutes: Math.ceil(limited.retryAfter / 60) }) };
-  }
-
-  const admin = await db.admin.findUnique({ where: { username } });
-  if (!admin || !verifyPassword(password, admin.password)) {
-    await audit("ADMIN", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
-    return { error: dict.genericError };
-  }
-
-  const device = await clientDevice();
-  await db.admin.update({
-    where: { id: admin.id },
-    data: { lastLoginAt: new Date(), lastLoginDevice: device },
-  });
-  await createSession({
-    sub: admin.id,
-    username: admin.username,
-    name: admin.fullName,
-    role: "admin",
-  });
-  await audit("ADMIN", admin.username, "LOGIN", undefined, `ip=${ip}${device ? `, device=${device}` : ""}`);
-  redirect("/admin");
-}
-
 export async function logout(): Promise<void> {
   const session = await getSession();
   if (session) {
-    await audit(session.role === "admin" ? "ADMIN" : "PATIENT", session.username, "LOGOUT");
+    await audit("PATIENT", session.username, "LOGOUT");
   }
   await destroySession();
-  redirect(session?.role === "admin" ? "/admin/login" : "/login");
+  redirect("/login");
 }

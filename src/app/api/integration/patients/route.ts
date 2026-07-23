@@ -2,9 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { checkIntegrationAuth } from "@/lib/integration-auth";
-import { generatePassword } from "@/lib/password";
+import { generatePassword, hashPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
-import { syncPatientDocumentsCore } from "@/lib/document-sync";
 
 const bodySchema = z.object({
   patientId: z
@@ -42,23 +41,21 @@ export async function POST(request: NextRequest) {
   const data = parsed.data;
 
   const password = generatePassword();
+  const passwordHash = await hashPassword(password);
 
   const existing = await db.patient.findUnique({ where: { patientId: data.patientId } });
 
   if (existing) {
     await db.patient.update({
       where: { id: existing.id },
-      data: { password, mustChangePassword: true },
+      data: { passwordHash, mustChangePassword: true },
     });
     await audit("SYSTEM", "integration", "PASSWORD_REGENERATED", data.patientId);
-    const sync = await syncPatientDocumentsCore(existing.id, existing.patientId, "SYSTEM", "integration");
     return NextResponse.json({
       patientId: existing.patientId,
       fullName: existing.fullName,
       password,
       created: false,
-      documentsSynced: sync.ok ? sync.count : undefined,
-      documentSyncError: sync.ok ? undefined : sync.error,
     });
   }
 
@@ -77,21 +74,18 @@ export async function POST(request: NextRequest) {
       phone: data.phone ?? null,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
       gender: data.gender ?? null,
-      password,
+      passwordHash,
       mustChangePassword: true,
     },
   });
 
   await audit("SYSTEM", "integration", "PATIENT_CREATED", patient.patientId);
-  const sync = await syncPatientDocumentsCore(patient.id, patient.patientId, "SYSTEM", "integration");
   return NextResponse.json(
     {
       patientId: patient.patientId,
       fullName: patient.fullName,
       password,
       created: true,
-      documentsSynced: sync.ok ? sync.count : undefined,
-      documentSyncError: sync.ok ? undefined : sync.error,
     },
     { status: 201 },
   );

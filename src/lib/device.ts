@@ -1,7 +1,7 @@
 import { UAParser } from "ua-parser-js";
 
 /**
- * Turns a User-Agent string into a short human label for the admin console,
+ * Turns a User-Agent string into a short human label for "last signed in from",
  * e.g. "macOS · Safari", "Windows · Chrome", "Android · Chrome Mobile (SM-G991B)".
  *
  * Exact phone/tablet model is best-effort only: modern Chrome (Android) sends

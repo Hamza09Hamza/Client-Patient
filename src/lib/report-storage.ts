@@ -6,8 +6,7 @@ import { join } from "path";
  * Local disk storage for report PDFs pushed from the clinic's own system —
  * see src/app/api/integration/reports/route.ts. Files live outside
  * `public/`, under `uploads/`, so they're only reachable through the
- * authenticated portal routes, same pattern as PasswordResetRequest's
- * idPhotoPath.
+ * authenticated portal routes.
  */
 
 export const REPORTS_DIR = join(process.cwd(), "uploads", "reports");

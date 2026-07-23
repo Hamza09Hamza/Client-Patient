@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 
-export type SessionRole = "patient" | "admin";
+export type SessionRole = "patient";
 
 export interface SessionPayload {
-  /** database id of the Patient or Admin row */
+  /** database id of the Patient row */
   sub: string;
-  /** login identifier (patient ID or admin username) shown in the UI */
+  /** login identifier (patient ID) shown in the UI */
   username: string;
   name: string;
   role: SessionRole;
@@ -60,7 +60,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       typeof payload.sub === "string" &&
       typeof payload.username === "string" &&
       typeof payload.name === "string" &&
-      (payload.role === "patient" || payload.role === "admin")
+      payload.role === "patient"
     ) {
       return {
         sub: payload.sub,

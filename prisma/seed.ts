@@ -1,6 +1,8 @@
 import { PrismaClient, ResultStatus } from "@prisma/client";
-import { mkdirSync, writeFileSync } from "fs";
+import { copyFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { createShareGrant } from "../src/lib/report-share";
+import { hashPassword } from "../src/lib/password";
 
 const db = new PrismaClient();
 
@@ -10,9 +12,10 @@ interface PanelSpec {
   specimen: string;
 }
 
-// Reports are PDFs synced from the clinic's own system (see document-sync.ts) —
-// these panel names are just realistic labels for demo report titles, not
-// structured analyte data (there is none: the portal only shows the PDF).
+// Reports are PDFs pushed from the clinic's own system (see
+// src/app/api/integration/reports/route.ts) — these panel names are just
+// realistic labels for demo report titles, not structured analyte data
+// (there is none: the portal only shows the PDF).
 const PANELS: PanelSpec[] = [
   { category: "Hematology", testName: "Complete Blood Count (CBC)", specimen: "Whole blood (EDTA)" },
   { category: "Biochemistry", testName: "Basic Metabolic Panel", specimen: "Serum" },
@@ -43,19 +46,22 @@ async function main() {
 
   console.log("Seeding clinic_portal ...");
 
+  // Reports are served from uploads/reports/ (see src/lib/report-storage.ts) —
+  // seed a copy of the sample PDF there so demo reports render for real
+  // through the same local-storage path a genuine push from the clinic's
+  // system would use, rather than pointing at a public/ static file.
+  const reportsDir = join(process.cwd(), "uploads", "reports");
+  mkdirSync(reportsDir, { recursive: true });
+  const seedPdfName = "seed-sample-report.pdf";
+  copyFileSync(
+    join(process.cwd(), "public", "sample-reports", "sample-report.pdf"),
+    join(reportsDir, seedPdfName),
+  );
+
   await db.auditLog.deleteMany();
-  await db.passwordResetRequest.deleteMany();
+  await db.reportShareGrant.deleteMany();
   await db.labResult.deleteMany();
   await db.patient.deleteMany();
-  await db.admin.deleteMany();
-
-  await db.admin.create({
-    data: {
-      username: "admin",
-      fullName: "Clinic Administrator",
-      password: "ClinicAdmin!2026",
-    },
-  });
 
   const patientsSpec = [
     { patientId: "PAT-2026-0001", fullName: "Yacine Benhamed", email: "yacine.benhamed@example.com", phone: "+213 550 12 34 56", dateOfBirth: new Date("1988-04-12"), gender: "Male", password: "Demo-Pass-2026", results: 26 },
@@ -67,6 +73,7 @@ async function main() {
 
   let accession = 1000;
   const now = Date.now();
+  let demoShareResultId: string | null = null;
 
   for (const spec of patientsSpec) {
     const patient = await db.patient.create({
@@ -77,7 +84,7 @@ async function main() {
         phone: spec.phone,
         dateOfBirth: spec.dateOfBirth,
         gender: spec.gender,
-        password: spec.password,
+        passwordHash: await hashPassword(spec.password),
         lastLoginAt: new Date(now - rand(1, 20) * 86_400_000),
       },
     });
@@ -96,7 +103,7 @@ async function main() {
         status === ResultStatus.PENDING ? null : new Date(collectedAt.getTime() + rand(6, 48) * 3_600_000);
       const reference = `LAB-${new Date(collectedAt).getFullYear()}-${accession++}`;
 
-      await db.labResult.create({
+      const created = await db.labResult.create({
         data: {
           reference,
           patientDbId: patient.id,
@@ -111,36 +118,22 @@ async function main() {
             Math.random() < 0.2
               ? "Sample slightly hemolyzed; values verified by repeat analysis."
               : null,
-          // Demo reports all point at the same sample PDF so the viewer has
-          // something real to render — a genuine sync fills in real per-report links.
+          // Demo reports all point at the same locally stored sample PDF so
+          // the viewer has something real to render — a genuine push from
+          // the clinic's system stores a distinct file per report.
           sourceRef: status === ResultStatus.PENDING ? null : `SRC-${reference}`,
-          sourceLink: status === ResultStatus.PENDING ? null : "/sample-reports/sample-report.pdf",
+          pdfPath: status === ResultStatus.PENDING ? null : seedPdfName,
         },
       });
+
+      if (!demoShareResultId && created.pdfPath) demoShareResultId = created.id;
     }
   }
-
-  // A pending forgot-password request with a placeholder ID photo
-  const uploadsDir = join(process.cwd(), "uploads");
-  mkdirSync(uploadsDir, { recursive: true });
-  const placeholder = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300"><rect width="480" height="300" fill="#e8f1f6"/><rect x="24" y="24" width="140" height="180" rx="8" fill="#cbd5e1"/><rect x="190" y="40" width="240" height="18" rx="4" fill="#94a3b8"/><rect x="190" y="76" width="200" height="14" rx="4" fill="#b6c2d0"/><rect x="190" y="104" width="220" height="14" rx="4" fill="#b6c2d0"/><text x="240" y="270" font-family="sans-serif" font-size="16" fill="#64748b">Seed placeholder ID document</text></svg>`;
-  writeFileSync(join(uploadsDir, "seed-id-photo.svg"), placeholder);
-
-  const amira = await db.patient.findUniqueOrThrow({ where: { patientId: "PAT-2026-0002" } });
-  await db.passwordResetRequest.create({
-    data: {
-      submittedPatientId: "PAT-2026-0002",
-      patientDbId: amira.id,
-      email: "amira.kaci@example.com",
-      note: "I changed phones and lost the note where my password was saved. Please reset it so I can check my thyroid results.",
-      idPhotoPath: "seed-id-photo.svg",
-    },
-  });
 
   await db.auditLog.createMany({
     data: [
       { actorType: "SYSTEM", actorId: "seed", action: "DATABASE_SEEDED", detail: "Initial demo dataset created" },
-      { actorType: "ADMIN", actorId: "admin", action: "PATIENT_CREATED", target: "PAT-2026-0001" },
+      { actorType: "SYSTEM", actorId: "integration", action: "PATIENT_CREATED", target: "PAT-2026-0001" },
       { actorType: "PATIENT", actorId: "PAT-2026-0001", action: "LOGIN" },
     ],
   });
@@ -150,7 +143,13 @@ async function main() {
     results: await db.labResult.count(),
   };
   console.log(`Seeded: ${counts.patients} patients, ${counts.results} results`);
-  console.log("Demo logins — patient: PAT-2026-0001 / Demo-Pass-2026 — admin: admin / ClinicAdmin!2026");
+  console.log("Demo login — patient: PAT-2026-0001 / Demo-Pass-2026");
+
+  if (demoShareResultId) {
+    const origin = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+    const grant = await createShareGrant(demoShareResultId);
+    console.log(`Demo QR share link (visit directly, no login needed): ${origin}/r/${grant.publicId}#t=${grant.token}`);
+  }
 }
 
 main()

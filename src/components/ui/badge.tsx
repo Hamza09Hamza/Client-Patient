@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, Check, Clock3, FlaskConical } from "lucide-react";
+import { BadgeCheck, Check, Clock3, FlaskConical } from "lucide-react";
 import type { ResultStatus } from "@prisma/client";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -26,21 +26,6 @@ export async function ResultStatusBadge({ status }: { status: ResultStatus }) {
     >
       <Icon aria-hidden className="size-3.5" />
       {label}
-    </span>
-  );
-}
-
-export async function PatientStatusBadge({ active }: { active: boolean }) {
-  const dict = getDictionary(await getLocale()).adminPatients;
-  return active ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-strong">
-      <Check aria-hidden className="size-3.5" />
-      {dict.active}
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2.5 py-1 text-xs font-semibold text-danger">
-      <AlertTriangle aria-hidden className="size-3.5" />
-      {dict.disabled}
     </span>
   );
 }

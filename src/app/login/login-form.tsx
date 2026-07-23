@@ -1,11 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { patientLogin, type AuthFormState } from "@/lib/actions/auth";
 import { Field, PasswordField } from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
+import { SpecularButton } from "@/components/rb/specular-button";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
@@ -36,20 +35,12 @@ export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
 
       <PasswordField label={dict.passwordLabel} name="password" autoComplete="current-password" required />
 
-      <Button type="submit" size="lg" loading={pending} className="w-full">
+      <SpecularButton type="submit" size="lg" loading={pending}>
         {dict.signInButton}
         {!pending && <ArrowRight aria-hidden className="size-4" />}
-      </Button>
+      </SpecularButton>
 
-      <p className="text-center text-sm text-ink-muted">
-        {dict.forgotPasswordText}{" "}
-        <Link
-          href="/forgot-password"
-          className="font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          {dict.forgotPasswordLink}
-        </Link>
-      </p>
+      <p className="text-center text-sm text-ink-muted">{dict.forgotPasswordText}</p>
     </form>
   );
 }

@@ -7,7 +7,7 @@ import { LOCALES, type Locale } from "@/lib/i18n/locale-types";
 
 interface LocaleSwitcherProps {
   locale: Locale;
-  /** "light" for use on dark backgrounds (admin sidebar, login hero) */
+  /** "light" for use on dark backgrounds (login hero) */
   variant?: "default" | "light";
 }
 

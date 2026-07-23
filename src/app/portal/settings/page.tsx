@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { requirePatient } from "@/lib/dal";
 import { db } from "@/lib/db";
@@ -66,14 +65,7 @@ export default async function SettingsPage() {
               <KeyRound aria-hidden className="size-5 text-primary" />
               <h2 className="font-semibold text-ink">{dict.resetPasswordTitle}</h2>
             </div>
-            <p className="mt-1 mb-5 text-[13px] text-ink-muted">{dict.resetPasswordDesc}</p>
-            <Link
-              href="/forgot-password"
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-primary-strong active:scale-[0.98]"
-            >
-              <KeyRound aria-hidden className="size-4" />
-              {dict.resetPasswordButton}
-            </Link>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">{dict.resetPasswordDesc}</p>
           </Card>
         </FadeIn>
       </div>

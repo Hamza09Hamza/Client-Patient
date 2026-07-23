@@ -22,7 +22,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { LiquidGlass } from "@/components/rb/liquid-glass";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { t } from "@/lib/i18n/dictionaries";
 
@@ -247,7 +246,7 @@ export function PdfViewer({ src, downloadHref, title, dict, openLabel, downloadL
 
   return (
     <div ref={containerRef} className="bg-[#0d1a1e] px-4 pb-4 pt-3 sm:px-6">
-      <LiquidGlass className="no-print mb-3 flex flex-wrap items-center gap-1 rounded-2xl px-2 py-1.5">
+      <div className="toolbar-panel no-print mb-3 flex flex-wrap items-center gap-1 rounded-2xl px-2 py-1.5">
         <div className="flex items-center gap-0.5">
           <ToolbarButton label={dict.previousPage} onClick={() => goToPage(pageNum - 1)} disabled={pageNum <= 1}>
             <ChevronLeft aria-hidden className="size-4" />
@@ -321,7 +320,7 @@ export function PdfViewer({ src, downloadHref, title, dict, openLabel, downloadL
             <Download aria-hidden className="size-3.5" />
           </a>
         </div>
-      </LiquidGlass>
+      </div>
 
       <div
         ref={stageRef}
@@ -329,13 +328,13 @@ export function PdfViewer({ src, downloadHref, title, dict, openLabel, downloadL
         role="group"
         aria-label={title}
         onKeyDown={handleStageKeyDown}
-        className="no-print flex overflow-auto rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        className="no-print flex overflow-auto overscroll-contain rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         style={{ height: "72vh" }}
       >
         {sidebarOpen && (
           <div
             data-thumb-rail
-            className="hidden w-28 shrink-0 overflow-y-auto border-r border-white/10 bg-black/20 p-2 sm:block"
+            className="hidden w-28 shrink-0 overflow-y-auto overscroll-contain border-r border-white/10 bg-black/20 p-2 sm:block"
           >
             {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
               <Thumbnail key={n} pdf={pdf} pageNumber={n} active={n === pageNum} onSelect={() => goToPage(n)} />

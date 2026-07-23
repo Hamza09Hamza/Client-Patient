@@ -101,33 +101,22 @@ export default async function ResultDetailPage({
             </dl>
           </div>
 
-          {/* Body: clinic-sourced PDF, a not-yet-reachable notice, or an in-progress notice */}
-          {fromClinicSystem ? (
-            openable ? (
-              <div>
-                <div className="border-b border-border/70 px-6 py-4 sm:px-8">
-                  <p className="text-sm font-semibold text-ink">{dict.clinicSourceTitle}</p>
-                  <p className="mt-0.5 text-[13px] text-ink-muted">{dict.clinicSourceDesc}</p>
-                </div>
-                <PdfViewer
-                  src={result.sourceLink!}
-                  downloadHref={`/portal/results/${result.id}/download`}
-                  title={result.testName}
-                  dict={pdfDict}
-                  openLabel={dict.openOnClinicSystem}
-                  downloadLabel={dict.downloadPdf}
-                />
+          {/* Body: locally stored PDF, or an in-progress notice */}
+          {result.pdfPath ? (
+            <div>
+              <div className="border-b border-border/70 px-6 py-4 sm:px-8">
+                <p className="text-sm font-semibold text-ink">{dict.clinicSourceTitle}</p>
+                <p className="mt-0.5 text-[13px] text-ink-muted">{dict.clinicSourceDesc}</p>
               </div>
-            ) : (
-              <div className="px-6 py-10 text-center sm:px-8">
-                <FileWarning aria-hidden className="mx-auto mb-3 size-8 text-warn" />
-                <p className="font-semibold text-ink">{dict.notYetAvailableTitle}</p>
-                <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">{dict.notYetAvailableDesc}</p>
-                <p className="mx-auto mt-3 max-w-md break-all rounded-lg bg-canvas px-3 py-2 font-mono text-[12px] text-ink-muted">
-                  {result.sourceLink}
-                </p>
-              </div>
-            )
+              <PdfViewer
+                src={`/portal/results/${result.id}/file`}
+                downloadHref={`/portal/results/${result.id}/download`}
+                title={result.testName}
+                dict={pdfDict}
+                openLabel={dict.openOnClinicSystem}
+                downloadLabel={dict.downloadPdf}
+              />
+            </div>
           ) : (
             <div className="px-6 py-12 text-center sm:px-8">
               <p className="font-semibold text-ink">{dict.inProgressTitle}</p>
