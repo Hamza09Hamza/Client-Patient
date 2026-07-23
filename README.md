@@ -20,9 +20,9 @@ every page and the generated PDF update.
 - Overview dashboard: stat tiles, latest reports
 - Full history with **search, category/status filters, date range, sorting, pagination**
 - Report detail: a **custom-built PDF viewer** (page nav, zoom, thumbnails, fullscreen — not
-  the browser's native plugin) for reports synced from the clinic's own system, wrapped in a
-  hand-rolled "liquid glass" toolbar (see "Design notes" below). No structured values are
-  entered or shown anywhere in the app — every report is the clinic's own PDF
+  the browser's native plugin) for reports pushed from the clinic's own system. No
+  structured values are entered or shown anywhere in the app — every report is the
+  clinic's own PDF
 - **No online password reset.** Patients never set their own password, and there's no
   in-app recovery flow — every physical report the clinic hands out is printed with a QR
   code (see "QR single-report sharing" below). Recovery is the clinic's own
@@ -50,9 +50,7 @@ Every report delivered (not synced) gets a scan-to-view link — no patient logi
 scoped to that one report only, expiring after 30 days, revocable, re-scannable
 within that window. The token travels in the URL fragment (never sent to the
 server on page load) and is exchanged client-side for a short-lived, path-scoped
-session cookie. The same delivery call also returns the patient's current
-username/password, meant to be printed alongside the QR on the physical report —
-see "No online password reset" above. Full flow and security notes:
+session cookie. Full flow and security notes:
 **[docs/API.md → QR single-report sharing](docs/API.md#qr-single-report-sharing)**.
 
 ### Integration API (`/api/integration/patients`, `/api/integration/reports`, `/api/integration/sync/reports`)
@@ -113,28 +111,22 @@ request's own origin if unset — set this explicitly behind a reverse proxy/NAT
 | Role | Username | Password |
 |---|---|---|
 | Patient | `PAT-2026-0001` | `Demo-Pass-2026` |
-| Admin | `admin` | `ClinicAdmin!2026` |
 
 ## Security model
 
-- **Passwords are stored in plaintext** — a deliberate product decision, not an
-  oversight, so admins can view a patient's current password on demand (Patients →
-  select patient → *View password*), and so it can be printed on physical reports
-  (see "No online password reset" above and `credentials` in the [report delivery
-  response](docs/API.md#current-report-delivery--post-apiintegrationreports)). This
-  trades off significant security for that convenience: **anyone who reads the
-  database, or a printed report, reads a password.** Every generation, regeneration,
-  view, and delivery-triggered inclusion is written to the audit log. If you'd rather
-  have the standard, safer behavior (one-way hashing; admins can only regenerate,
-  never view; drop `credentials` from the delivery response), that's a change in
-  `src/lib/password.ts` + `prisma/schema.prisma` + `src/lib/report-push.ts` — ask if
-  you want it switched. See **[DEPLOYMENT.md](DEPLOYMENT.md) → Security notes** for
-  how to compensate operationally (encryption at rest, network-restricted DB access,
-  encrypted backups).
+- **Passwords are hashed at rest** (scrypt, random salt per patient —
+  `src/lib/password.ts`) and never stored or retrievable in plaintext afterward. The
+  plaintext exists only once, in memory, at generation/regeneration time, and is
+  returned exactly then in the `POST /api/integration/patients` response for the
+  clinic's own system (SERVER A) to keep — see [docs/API.md → POST
+  /api/integration/patients](docs/API.md#post-apiintegrationpatients). This app never
+  re-sends it and has no way to look it up again; every generation and regeneration is
+  written to the audit log.
 - **Patients cannot change or reset their own password online at all** — there is no
-  self-service flow of any kind. Recovery is entirely physical: any older report they
-  still have carries a valid username/password (or a QR code, if it hasn't expired).
-  Staff can look up or regenerate a password from the admin console at any time.
+  self-service flow of any kind, and there is no staff console either. Recovery is
+  entirely the clinic's own responsibility: calling `POST /api/integration/patients`
+  again re-credentials the patient and hands the new password back to the clinic's
+  system, the same way it did the first time.
 - Sessions are **HS256 JWTs in httpOnly, sameSite cookies** (8 h); the proxy does
   optimistic role checks and every page/action re-verifies against the database
 - The integration API authenticates with a **Bearer token**, constant-time compared,
@@ -148,7 +140,7 @@ request's own origin if unset — set this explicitly behind a reverse proxy/NAT
 - Login and integration endpoints are **rate limited**
 - Patients can only query their own rows (`patientDbId` scoping in every query)
 - Report PDFs live outside `public/` and are served only to the owning authenticated
-  patient, an admin, or (for a QR share) a verified single-report grant
+  patient, or (for a QR share) a verified single-report grant
 - Every sensitive action is written to the **audit log**
 
 ## Project structure
@@ -164,20 +156,18 @@ src/lib/              db, session, password, device, rate-limit, audit,
                        report-storage.ts (local PDF disk I/O), report-push.ts (shared
                        ingestion core), report-share.ts (QR grant/token logic), i18n/,
                        server actions
-src/components/       ui/ (buttons, fields, modals…), rb/ (animated components incl.
-                       liquid-glass.tsx), portal/pdf-viewer.tsx, i18n/, admin/, portal/
+src/components/       ui/ (buttons, fields, modals…), rb/ (animated components),
+                       portal/pdf-viewer.tsx, i18n/, portal/
 src/app/
   login                           patient sign-in (no "forgot password" link — see
                                    "No online password reset" above)
   portal/                         patient dashboard, results, settings
   portal/results/[id]/file        untracked inline PDF view (what the viewer renders)
   portal/results/[id]/download    audit-logs the download, then streams the PDF
-  admin/login                     staff sign-in
-  admin/(console)/                dashboard (incl. Stats), patients, results, audit, settings
   r/[publicId]/                   public QR single-report viewer (no login)
   r/[publicId]/file               serves the PDF for a verified QR share session
-  api/integration/patients        patient provisioning endpoint (Bearer auth)
-  api/integration/reports         report delivery + QR minting + credentials (Bearer auth)
+  api/integration/patients        patient provisioning + (re)credentialing endpoint (Bearer auth)
+  api/integration/reports         report delivery + QR minting (Bearer auth)
   api/integration/sync/reports    historical/bulk report import, no QR (separate Bearer key)
   api/public/report-access/       exchanges a QR token for a share session cookie
   api/health/                     liveness + DB check

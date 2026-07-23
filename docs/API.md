@@ -2,8 +2,9 @@
 
 This is the contract for the clinic's internal systems (LIS/HIS, registration desk
 software, etc.) to talk to the patient portal: provision patient accounts and
-credentials, then push report PDFs. It is **not** used by the website itself — the
-patient portal and admin console authenticate with cookie sessions, not this API.
+credentials, then push report PDFs. There is no staff web console — this API is the
+only way patients and reports enter the system. It is **not** used by the website
+itself — the patient portal authenticates with cookie sessions, not this API.
 
 All three endpoints are **push-only from the clinic's side** — this app never calls
 out to the clinic's network. That matters if this app's VM has no outbound path into
@@ -116,10 +117,11 @@ Content-Type: application/json
 }
 ```
 
-**The `password` field is the only place this value is returned — capture it
-immediately.** It is also retrievable later by an admin from the console (Patients →
-select patient → *View password*), since this system stores credentials in
-plaintext by design — see the Security note in the main [README](../README.md).
+**The `password` field is the only place this value is ever returned — capture it
+immediately.** This app stores only a salted hash, never the plaintext, so it cannot
+be looked up again afterward by any means. If it's lost, call this endpoint again
+with the same `patientId` to generate a fresh one — see the Security model note in
+the main [README](../README.md).
 
 Once a patient is provisioned, push their reports via [`POST
 /api/integration/reports`](#current-report-delivery--post-apiintegrationreports) below.
@@ -208,10 +210,10 @@ rejected for that item without failing the rest of the batch.
 
 Always `200` if the request itself was well-formed — failures are reported per item,
 since one bad report in a batch shouldn't sink the rest. Every stored item includes
-its QR grant **and the patient's current login credentials** — print both on the
-physical report. There is no online "forgot password" flow in this app; a patient's
-recovery path is simply having any older report on paper, since each one carries a
-valid username/password at the time it was printed:
+its QR grant — print it on the physical report so the patient can scan straight to
+this one report with no login. This endpoint never returns patient credentials (see
+"Security model" in the [README](../README.md)); the clinic's system already has
+them from provisioning (`POST /api/integration/patients`):
 
 ```json
 {
@@ -226,8 +228,7 @@ valid username/password at the time it was printed:
         "url": "https://your-domain/r/RPT-7K4MX2#t=<opaque-secret>",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
         "expiresAt": "2026-08-22T10:15:00.000Z"
-      },
-      "credentials": { "username": "PAT-2026-0200", "password": "Kt7m-Rx4q-Wn9d" }
+      }
     },
     {
       "externalId": "A-88214",
@@ -239,13 +240,6 @@ valid username/password at the time it was printed:
   ]
 }
 ```
-
-`credentials.password` is the patient's **current** password, unchanged by this call —
-pushing a report never regenerates it. This is the same plaintext value an admin can
-view from the console (Patients → select patient → *View password*); see the README
-"Security model" section for that tradeoff. If the patient's password was already
-regenerated since their last report, older printed papers show a stale password — an
-admin can always look up (or regenerate) the current one from the console.
 
 `qr.svg` is a ready-to-print SVG QR code encoding `qr.url` — there's no separate
 endpoint to fetch it again later, because the plaintext token inside the URL is
@@ -273,8 +267,8 @@ same per-item error reporting — with two differences:
 - Authenticated with **`INTEGRATION_SYNC_API_KEY`** instead of `INTEGRATION_API_KEY`,
   so a sync job's credential can't be used to mint QR-bearing "current" deliveries
   (and vice versa — the main key doesn't work here).
-- Never mints a QR share grant and never returns patient credentials. Every result
-  item has `"qrGenerated": false` and no `qr` or `credentials` field.
+- Never mints a QR share grant — a fresh scan-to-view link serves no purpose for a
+  historical backfill. Every result item has `"qrGenerated": false` and no `qr` field.
 
 Use this for an initial backfill of every report already on file at the clinic —
 chunked across multiple calls, 60 reports at a time. Ongoing day-to-day deliveries
