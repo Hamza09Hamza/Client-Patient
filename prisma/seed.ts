@@ -1,5 +1,6 @@
 import { PrismaClient, ResultStatus } from "@prisma/client";
-import { copyFileSync, mkdirSync } from "fs";
+import { createHash } from "crypto";
+import { copyFileSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { createShareGrant } from "../src/lib/report-share";
 import { hashPassword } from "../src/lib/password";
@@ -53,10 +54,12 @@ async function main() {
   const reportsDir = join(process.cwd(), "uploads", "reports");
   mkdirSync(reportsDir, { recursive: true });
   const seedPdfName = "seed-sample-report.pdf";
+  const seedPdfSource = join(process.cwd(), "public", "sample-reports", "sample-report.pdf");
   copyFileSync(
-    join(process.cwd(), "public", "sample-reports", "sample-report.pdf"),
+    seedPdfSource,
     join(reportsDir, seedPdfName),
   );
+  const seedPdfSha256 = createHash("sha256").update(readFileSync(seedPdfSource)).digest("hex");
 
   await db.auditLog.deleteMany();
   await db.reportShareGrant.deleteMany();
@@ -124,6 +127,7 @@ async function main() {
           // the clinic's system stores a distinct file per report.
           sourceRef: status === ResultStatus.PENDING ? null : `SRC-${reference}`,
           pdfPath: status === ResultStatus.PENDING ? null : seedPdfName,
+          pdfSha256: status === ResultStatus.PENDING ? null : seedPdfSha256,
         },
       });
 

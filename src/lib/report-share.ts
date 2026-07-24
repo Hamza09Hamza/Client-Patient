@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 /**
@@ -58,7 +59,15 @@ export async function createShareGrant(labResultId: string): Promise<ShareGrant>
       await db.reportShareGrant.create({ data: { publicId, labResultId, tokenHash, expiresAt } });
       return { publicId, token, expiresAt };
     } catch (err) {
-      if (attempt === 4) throw err;
+      const target =
+        err instanceof Prisma.PrismaClientKnownRequestError && Array.isArray(err.meta?.target)
+          ? err.meta.target
+          : [];
+      const publicIdCollision =
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002" &&
+        target.includes("publicId");
+      if (!publicIdCollision || attempt === 4) throw err;
     }
   }
   throw new Error("Could not allocate a share id.");

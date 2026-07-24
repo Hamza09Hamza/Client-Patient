@@ -154,7 +154,7 @@ hand-construct anything, just tell your library "here's a file field."
    | Field | Required | What it is |
    |---|---|---|
    | `patientId` | yes | Must match a patient already registered in step 1 |
-   | `externalId` | yes | **Your own** document id for this report — ties this metadata entry to its file part (see below), and lets you safely resend the same report later (see "Resending" below) |
+   | `externalId` | yes | **Your own** document id for this report — ties this metadata entry to its file part (see below), and lets you safely retry the same report later (see "Retrying the same report" below) |
    | `title` | yes | Shown to the patient as the report name |
    | `category` | no | e.g. "Hematology" — defaults to "Clinic report" if you leave it out |
    | `collectedAt` | yes | Date the sample was collected (ISO format, e.g. `2026-06-14`) |
@@ -215,14 +215,18 @@ storage, record the report's details against the matching patient, and mint
 that QR code. Nothing further is required from you for that report — the
 patient can now also see it by logging into the portal directly.
 
-### Resending the same report
+### Retrying the same report
 
-If you ever need to resend a report (e.g. a retry after a network error,
-or a corrected version) — just send it again with the **same `externalId`**.
-We treat that as an update, not a duplicate: the same report entry is refreshed
-with the replacement file and metadata, the previous unreferenced PDF is removed,
-and a fresh QR code is minted. Nothing gets double-counted in the patient's
-history.
+If a network error makes you unsure whether we received a report, send the exact
+same PDF again with the same **`externalId`**. We compare its SHA-256 fingerprint:
+
+- Identical bytes return `status: "already_stored"` and a fresh QR code. No
+  duplicate database row or PDF file is created.
+- Different bytes return `status: "conflict"` and the original report is not
+  changed.
+
+A corrected PDF or any genuinely new report must have a new `externalId`. This
+keeps the patient's report history append-only.
 
 ---
 
@@ -247,6 +251,8 @@ history.
   (often: the patient wasn't registered yet, or the file wasn't a valid
   PDF) but the rest of the batch still went through — check each item's
   `status` field.
+- **`conflict` on an individual report** — that `externalId` already belongs
+  to different PDF bytes. Do not overwrite it; issue a new `externalId`.
 - **`413`** — the request exceeded 100MB of PDF data; split it into smaller batches.
 - **`429 Rate limit exceeded`** — you're sending faster than 60 requests/min
   from one IP. Slow down and retry after the `Retry-After` header's value

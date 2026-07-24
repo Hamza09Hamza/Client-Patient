@@ -1,51 +1,97 @@
 #!/usr/bin/env bash
-# Production deploy: install, migrate, build, start.
-# Usage: ./scripts/deploy.sh
-# Env:   PORT (default 3000), HOST (default 0.0.0.0)
-#
-# What this does NOT do: seed the database (prisma/seed.ts wipes all tables —
-# it refuses to run with NODE_ENV=production unless ALLOW_PROD_SEED=true), or
-# provision Postgres/TLS/a reverse proxy for you. See ../DEPLOYMENT.md.
+# Run manually from inside the production server repository.
+# It fast-forwards from origin/main, validates, builds, migrates, reloads PM2,
+# and verifies the health endpoint.
 
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-log() { printf '\n\033[1;36m==>\033[0m %s\n' "$1"; }
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_common.sh
+. "$SCRIPT_DIR/_common.sh"
+cd "$PROJECT_ROOT"
 
+require_command git
+require_command npm
+require_command npx
+require_command pm2
+require_command curl
+require_command flock
+require_node_20
+require_clean_worktree
+
+exec 9>/tmp/clinic-patient-deploy.lock
+flock -n 9 || die "Another deployment is already running."
+
+load_production_env
+validate_production_env
 export NODE_ENV=production
+export NEXT_TELEMETRY_DISABLED=1
 
-log "Checking required environment variables"
-missing=()
-[ -z "${DATABASE_URL:-}" ] && missing+=("DATABASE_URL")
-[ -z "${AUTH_SECRET:-}" ] && missing+=("AUTH_SECRET")
-[ -z "${INTEGRATION_API_KEY:-}" ] && missing+=("INTEGRATION_API_KEY")
-if [ "${#missing[@]}" -gt 0 ]; then
-  echo "Missing required env vars: ${missing[*]}" >&2
-  echo "Set them in the environment or in .env.production, then re-run." >&2
-  exit 1
+remote="${GIT_REMOTE:-origin}"
+branch="${DEPLOY_BRANCH:-main}"
+app_name="${PM2_APP_NAME:-clinic-patient}"
+host="${HOST:-127.0.0.1}"
+port="${PORT:-3000}"
+health_url="${HEALTH_URL:-http://127.0.0.1:$port/api/health}"
+
+current_branch="$(git symbolic-ref --quiet --short HEAD)" || die "The server repository is on a detached HEAD."
+[ "$current_branch" = "$branch" ] || die "Expected branch '$branch', but the server is on '$current_branch'."
+
+before="$(git rev-parse HEAD)"
+
+log "Fetching $remote/$branch"
+git fetch --prune "$remote" "$branch"
+target="$(git rev-parse "refs/remotes/$remote/$branch")"
+
+if [ "$before" = "$target" ]; then
+  log "Server already has the latest commit"
+else
+  if ! git merge-base --is-ancestor "$before" "$target"; then
+    die "The remote update is not a fast-forward. Resolve it manually; deployment made no changes."
+  fi
+  log "Fast-forwarding to $target"
+  git merge --ff-only "$target"
 fi
-if [ "${#AUTH_SECRET}" -lt 32 ]; then
-  echo "AUTH_SECRET must be at least 32 characters." >&2
-  exit 1
-fi
-if [ "${#INTEGRATION_API_KEY}" -lt 16 ]; then
-  echo "INTEGRATION_API_KEY must be at least 16 characters." >&2
-  exit 1
-fi
 
-log "Installing dependencies (npm ci)"
-npm ci
+log "Installing the exact locked dependencies"
+npm ci --include=dev
 
-log "Generating Prisma client"
-npx prisma generate
+log "Running application checks"
+npm run check
 
-log "Applying database migrations (prisma migrate deploy)"
-npx prisma migrate deploy
+log "Checking shipped dependencies for high or critical advisories"
+npm audit --omit=dev --audit-level=high
 
-log "Building the production bundle"
+log "Building the production application"
 npm run build
 
-PORT="${PORT:-3000}"
-HOST="${HOST:-0.0.0.0}"
-log "Starting the server on ${HOST}:${PORT}"
-exec npx next start --hostname "$HOST" --port "$PORT"
+log "Applying pending database migrations"
+npx prisma migrate deploy
+
+if pm2 describe "$app_name" >/dev/null 2>&1; then
+  log "Reloading PM2 process: $app_name"
+  pm2 reload "$app_name" --update-env
+else
+  log "Starting PM2 process for the first time: $app_name"
+  pm2 start npm --name "$app_name" -- start -- --hostname "$host" --port "$port"
+fi
+pm2 save
+
+log "Waiting for $health_url"
+healthy=false
+for _attempt in {1..20}; do
+  if curl --fail --silent --show-error "$health_url" >/dev/null; then
+    healthy=true
+    break
+  fi
+  sleep 1
+done
+
+if [ "$healthy" != "true" ]; then
+  printf 'Deployment reached commit %s, but its health check failed.\n' "$target" >&2
+  printf 'Inspect: pm2 logs %s --lines 200\n' "$app_name" >&2
+  exit 1
+fi
+
+log "Deployment healthy"
+printf 'Previous commit: %s\nRunning commit:  %s\n' "$before" "$target"

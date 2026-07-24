@@ -74,6 +74,7 @@ model LabResult {
   // the portal shows the PDF viewer instead of an "in progress" notice.
   sourceRef         String? // SERVER A's document id, for idempotent re-push
   pdfPath           String? // filename under uploads/reports/ — never a URL, always local
+  pdfSha256         String? // lowercase SHA-256 hex; makes immutable upload retries verifiable
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 

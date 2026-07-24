@@ -38,9 +38,11 @@ Reports arrive as PDFs pushed **from** the clinic's own internal system (LIS/HIS
 this app never calls out to fetch them. Each call sends a batch (up to 10) of
 `{ patientId, externalId, title, collectedAt, ... }` metadata entries alongside their
 PDF bytes as multipart file parts; this app stores each file locally under
-`uploads/reports/` (upserted by patient + `externalId`) and shows it in the patient's
-results list through the built-in PDF viewer. A successful resend replaces the
-stored file and removes the previous unreferenced file. This direction
+`uploads/reports/` (identified by patient + `externalId`) and shows it in the patient's
+results list through the built-in PDF viewer. Reports are append-only: an identical
+retry returns `already_stored` without writing another file, while reusing the same
+`externalId` for different PDF bytes returns `conflict`. A corrected document must
+have a new `externalId`. This direction
 works even when this app's VM has no outbound path into the clinic's network.
 Every push also mints a **QR share grant** per report — a scoped, revocable link
 that shows just that one PDF with no patient login (see "QR single-report sharing"
@@ -65,7 +67,7 @@ walkthrough to hand to whoever operates that system.
 
 ```bash
 # Verify/create a patient and receive generated login credentials
-curl -X POST https://<host>/api/integration/patients \
+curl -X POST https://patients.example.com/api/integration/patients \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"patientId":"PAT-2026-0200","fullName":"Jane Doe","email":"jane@example.com"}'
 # -> {"patientId":"PAT-2026-0200","username":"k7mXq2wR","fullName":"Jane Doe","password":"b8WD2Zmy","created":true}
@@ -76,6 +78,7 @@ curl -X POST https://<host>/api/integration/patients \
 
 ```bash
 npm install
+cp .env.example .env
 
 # Database — either use a local PostgreSQL and set DATABASE_URL in .env,
 # or start the bundled Docker service (listens on host port 5433):
@@ -86,8 +89,9 @@ npx prisma db seed       # demo data
 npm run dev              # http://localhost:3000
 ```
 ### Where the database actually lives (local dev)
-`DATABASE_URL` in `.env` decides this — as shipped it points at a **local PostgreSQL**
-server, not Docker: `postgresql://postgres@localhost:5432/clinic_portal`. On macOS
+`DATABASE_URL` in `.env` decides this. The committed `.env.example` points at
+the bundled Docker PostgreSQL service on host port `5433`. If your existing
+local `.env` points at `postgresql://postgres@localhost:5432/clinic_portal`, on macOS
 with Homebrew that's the `postgresql@15` service (`brew services list` to check),
 storing data under `/opt/homebrew/var/postgresql@15`, with a `clinic_portal` database
 created for this project. Inspect it directly with `psql clinic_portal` or any GUI
@@ -106,8 +110,9 @@ Set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
 (32+ random chars, also signs QR share sessions), and `INTEGRATION_API_KEY` (16+
 random chars — authenticates `/api/integration/patients` and
 `/api/integration/reports`); see [docs/API.md](docs/API.md). `PUBLIC_BASE_URL` sets
-the origin baked into generated QR URLs (falls back to the request's own origin if
-unset — set this explicitly behind a reverse proxy/NAT).
+the origin baked into generated QR URLs. It may fall back to the request origin
+in development, but production refuses report ingestion unless it is an explicit
+HTTPS origin.
 
 ### Demo credentials (seed data)
 
@@ -155,7 +160,11 @@ unset — set this explicitly behind a reverse proxy/NAT).
 docs/API.md          integration API reference (auth, endpoints, report push contract)
 docs/INTEGRATION-GUIDE.md  plain-language walkthrough for the clinic's system operator
 DEPLOYMENT.md        production deploy guide
-scripts/deploy.sh    install → migrate → build → start
+QUICK-DEPLOY.md      short repeat-deployment checklist after server setup
+scripts/check.sh     local fast or full release verification
+scripts/push.sh      verifies and pushes the current committed branch
+scripts/deploy.sh    manual in-server pull → check → build → migrate → PM2 reload
+scripts/status.sh    read-only server, PM2, health, migration, and disk diagnostics
 scripts/copy-pdf-worker.mjs  syncs the pdf.js worker into public/pdfjs/ (runs on postinstall)
 prisma/              schema + seed (seed refuses to run in production)
 src/proxy.ts         route guard (Next 16 proxy)

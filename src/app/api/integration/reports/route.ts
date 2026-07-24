@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
@@ -7,8 +8,11 @@ import { checkIntegrationAuth } from "@/lib/integration-auth";
 import {
   deleteReportPdf,
   looksLikePdf,
+  readReportPdf,
+  reportSha256,
   storeReportPdf,
   MAX_BATCH_BYTES,
+  MAX_MULTIPART_BYTES,
   MAX_REPORT_BYTES,
   MAX_REPORTS_PER_BATCH,
 } from "@/lib/report-storage";
@@ -61,14 +65,70 @@ const batchSchema = z
 interface ItemResult {
   externalId: string;
   patientId: string;
-  status: "stored" | "error";
+  status: "stored" | "already_stored" | "conflict" | "error";
   error?: string;
   qrGenerated: boolean;
   qr?: { publicId: string; url: string; svg: string; expiresAt: string };
 }
 
 function resolveOrigin(request: NextRequest): string {
-  return process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") || request.nextUrl.origin;
+  const configured = process.env.PUBLIC_BASE_URL;
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("PUBLIC_BASE_URL is required in production.");
+    }
+    return request.nextUrl.origin;
+  }
+
+  const url = new URL(configured);
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+    throw new Error("PUBLIC_BASE_URL must use HTTPS in production.");
+  }
+  return url.origin;
+}
+
+interface ExistingReport {
+  id: string;
+  pdfPath: string | null;
+  pdfSha256: string | null;
+}
+
+async function existingReportMatches(existing: ExistingReport, incomingSha256: string): Promise<boolean> {
+  if (!existing.pdfPath) {
+    throw new Error("Existing integrated report has no stored PDF.");
+  }
+
+  const storedSha256 = reportSha256(await readReportPdf(existing.pdfPath));
+  if (existing.pdfSha256 && existing.pdfSha256 !== storedSha256) {
+    throw new Error("Existing report PDF does not match its stored fingerprint.");
+  }
+  if (!existing.pdfSha256) {
+    await db.labResult.updateMany({
+      where: { id: existing.id, pdfSha256: null },
+      data: { pdfSha256: storedSha256 },
+    });
+  }
+  return storedSha256 === incomingSha256;
+}
+
+function isConcurrentReportCreate(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+  const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
+  return target.includes("patientDbId") && target.includes("sourceRef");
+}
+
+async function mintQr(labResultId: string, origin: string): Promise<NonNullable<ItemResult["qr"]>> {
+  const grant = await createShareGrant(labResultId);
+  try {
+    const url = `${origin}/r/${grant.publicId}#t=${grant.token}`;
+    const svg = await QRCode.toString(url, { type: "svg", margin: 1 });
+    return { publicId: grant.publicId, url, svg, expiresAt: grant.expiresAt.toISOString() };
+  } catch (error) {
+    await db.reportShareGrant.deleteMany({ where: { publicId: grant.publicId } }).catch(() => {});
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -76,9 +136,9 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
 
   const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_BATCH_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_MULTIPART_BYTES) {
     return NextResponse.json(
-      { error: `Request exceeds the ${MAX_BATCH_BYTES / (1024 * 1024)}MB batch limit.` },
+      { error: `Multipart request exceeds the ${MAX_MULTIPART_BYTES / (1024 * 1024)}MB request limit.` },
       { status: 413 },
     );
   }
@@ -125,7 +185,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const origin = resolveOrigin(request);
+  let origin: string;
+  try {
+    origin = resolveOrigin(request);
+  } catch {
+    return NextResponse.json(
+      { error: "Server B is missing a valid production PUBLIC_BASE_URL." },
+      { status: 503 },
+    );
+  }
   const results: ItemResult[] = [];
 
   for (const item of parsed.data) {
@@ -158,10 +226,11 @@ export async function POST(request: NextRequest) {
       results.push({ ...base, status: "error", error: "File is not a PDF." });
       continue;
     }
+    const incomingSha256 = reportSha256(bytes);
 
     let pdfPath: string | null = null;
-    let databaseUpdated = false;
-    let grantPublicId: string | null = null;
+    let reportStored = false;
+    let qrAttempted = false;
 
     try {
       const patient = await db.patient.findUnique({ where: { patientId: item.patientId } });
@@ -176,75 +245,86 @@ export async function POST(request: NextRequest) {
 
       const existing = await db.labResult.findUnique({
         where: { patientDbId_sourceRef: { patientDbId: patient.id, sourceRef: item.externalId } },
-        select: { pdfPath: true },
+        select: { id: true, pdfPath: true, pdfSha256: true },
       });
 
-      pdfPath = await storeReportPdf(bytes);
-      const labResult = await db.labResult.upsert({
-        where: { patientDbId_sourceRef: { patientDbId: patient.id, sourceRef: item.externalId } },
-        create: {
-          reference: `SRC-${item.externalId}`,
-          patientDbId: patient.id,
-          category: item.category ?? "Clinic report",
-          testName: item.title,
-          status: "COMPLETED",
-          orderingPhysician: item.physician ?? null,
-          specimen: item.specimen ?? null,
-          collectedAt,
-          reportedAt: collectedAt,
-          notes: item.notes ?? null,
-          sourceRef: item.externalId,
-          pdfPath,
-        },
-        update: {
-          testName: item.title,
-          category: item.category ?? "Clinic report",
-          orderingPhysician: item.physician ?? null,
-          specimen: item.specimen ?? null,
-          collectedAt,
-          reportedAt: collectedAt,
-          notes: item.notes ?? null,
-          pdfPath,
-        },
-      });
-      databaseUpdated = true;
-
-      // A resend replaces the database pointer. Remove the previous file only
-      // after that succeeds, and only if no other report still references it
-      // (the demo seed intentionally shares one sample PDF).
-      if (existing?.pdfPath && existing.pdfPath !== pdfPath) {
-        try {
-          const remainingReferences = await db.labResult.count({
-            where: { pdfPath: existing.pdfPath },
+      if (existing) {
+        reportStored = true;
+        if (!(await existingReportMatches(existing, incomingSha256))) {
+          results.push({
+            ...base,
+            status: "conflict",
+            error: "This externalId already belongs to a different PDF. Send the new report with a new externalId.",
           });
-          if (remainingReferences === 0) {
-            await deleteReportPdf(existing.pdfPath);
-          }
-        } catch {
-          await audit("SYSTEM", "integration", "REPORT_FILE_CLEANUP_FAILED", item.externalId);
+          continue;
         }
+
+        qrAttempted = true;
+        const qr = await mintQr(existing.id, origin);
+        results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
+        continue;
       }
 
-      const grant = await createShareGrant(labResult.id);
-      grantPublicId = grant.publicId;
-      const url = `${origin}/r/${grant.publicId}#t=${grant.token}`;
-      const svg = await QRCode.toString(url, { type: "svg", margin: 1 });
-      const qr = { publicId: grant.publicId, url, svg, expiresAt: grant.expiresAt.toISOString() };
+      pdfPath = await storeReportPdf(bytes);
+      let labResult: { id: string };
+      try {
+        labResult = await db.labResult.create({
+          data: {
+            reference: `SRC-${item.externalId}`,
+            patientDbId: patient.id,
+            category: item.category ?? "Clinic report",
+            testName: item.title,
+            status: "COMPLETED",
+            orderingPhysician: item.physician ?? null,
+            specimen: item.specimen ?? null,
+            collectedAt,
+            reportedAt: collectedAt,
+            notes: item.notes ?? null,
+            sourceRef: item.externalId,
+            pdfPath,
+            pdfSha256: incomingSha256,
+          },
+          select: { id: true },
+        });
+      } catch (error) {
+        if (!isConcurrentReportCreate(error)) throw error;
 
+        await deleteReportPdf(pdfPath);
+        pdfPath = null;
+        const racedReport = await db.labResult.findUnique({
+          where: { patientDbId_sourceRef: { patientDbId: patient.id, sourceRef: item.externalId } },
+          select: { id: true, pdfPath: true, pdfSha256: true },
+        });
+        if (!racedReport) throw error;
+
+        reportStored = true;
+        if (!(await existingReportMatches(racedReport, incomingSha256))) {
+          results.push({
+            ...base,
+            status: "conflict",
+            error: "This externalId was concurrently stored with a different PDF. Use a new externalId.",
+          });
+          continue;
+        }
+        qrAttempted = true;
+        const qr = await mintQr(racedReport.id, origin);
+        results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
+        continue;
+      }
+
+      reportStored = true;
+      qrAttempted = true;
+      const qr = await mintQr(labResult.id, origin);
       results.push({ ...base, status: "stored", qrGenerated: true, qr });
     } catch (error) {
-      // Before the DB points at the new file it is safe to remove it. After a
-      // successful upsert the portal already references it, so keep it and
-      // tell Server A to retry the same externalId if QR creation failed.
-      if (pdfPath && !databaseUpdated) {
+      // A file not referenced by a successfully created database row is an
+      // orphan, so remove it before reporting the item failure.
+      if (pdfPath && !reportStored) {
         try {
           await deleteReportPdf(pdfPath);
         } catch {
           // The audit summary below still records this item as failed.
         }
-      }
-      if (grantPublicId) {
-        await db.reportShareGrant.deleteMany({ where: { publicId: grantPublicId } }).catch(() => {});
       }
       console.error("report ingestion failed", {
         externalId: item.externalId,
@@ -254,20 +334,26 @@ export async function POST(request: NextRequest) {
       results.push({
         ...base,
         status: "error",
-        error: databaseUpdated
+        error: reportStored && qrAttempted
           ? "Report stored, but QR generation failed. Retry this externalId."
-          : "Report could not be stored. Retry this externalId.",
+          : reportStored
+            ? "Existing report could not be verified. Server B storage requires attention."
+            : "Report could not be stored. Retry this externalId.",
       });
     }
   }
 
   const storedCount = results.filter((r) => r.status === "stored").length;
+  const alreadyStoredCount = results.filter((r) => r.status === "already_stored").length;
+  const conflictCount = results.filter((r) => r.status === "conflict").length;
   await audit(
     "SYSTEM",
     "integration",
     "REPORTS_PUSHED",
     undefined,
-    `stored=${storedCount} failed=${results.length - storedCount}`,
+    `stored=${storedCount} alreadyStored=${alreadyStoredCount} conflicts=${conflictCount} errors=${
+      results.length - storedCount - alreadyStoredCount - conflictCount
+    }`,
   );
 
   return NextResponse.json({ results });

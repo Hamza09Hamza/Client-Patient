@@ -2,14 +2,22 @@
   "name": "clinic-patient",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.19 <21"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test && npx prisma validate",
+    "check:release": "bash scripts/check.sh --release",
+    "push:verified": "bash scripts/push.sh",
     "postinstall": "prisma generate && node scripts/copy-pdf-worker.mjs",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "status:server": "bash scripts/status.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -37,8 +45,5 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

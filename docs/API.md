@@ -122,10 +122,14 @@ Current limits:
 - 1–10 reports per request
 - 25 MB per PDF
 - 100 MB total PDF data per request
+- 105 MB for the complete multipart request, including metadata and headers
 
 The clinic normally sends 5–7 reports together. SERVER B processes them
 sequentially inside the request and returns only after the batch is finished. A
 separate queue is not required for the current volume.
+
+Reports are immutable. `(patientId, externalId)` identifies one exact PDF, not a
+mutable slot for the patient's latest document.
 
 ### Request parts
 
@@ -235,29 +239,60 @@ available in the logged-in portal and returns:
 }
 ```
 
-Retrying the same patient and `externalId` updates that report and mints a new QR.
+Retrying the same patient, `externalId`, and identical PDF mints a new QR
+without modifying the stored report.
 
-### Resending a report
+### Identical retries and external-ID conflicts
 
-On a successful resend:
+Server B stores a SHA-256 fingerprint with every integrated PDF.
 
-1. Server B writes the replacement PDF under a new random filename.
-2. The database is updated to point the report at that replacement.
-3. The previous PDF is removed if no other database row references it.
-4. A fresh QR grant is created.
+- If the same patient, `externalId`, and identical PDF bytes arrive again, Server B
+  does not write another file or change the report metadata. It returns
+  `status: "already_stored"` and mints a fresh QR so a lost HTTP response can be
+  recovered safely.
+- If the same patient and `externalId` arrive with different PDF bytes, Server B
+  returns `status: "conflict"`, `qrGenerated: false`, and leaves the original
+  report untouched. A corrected or newly issued document must use a new
+  `externalId`.
 
-If the database update fails, the newly written unreferenced file is removed. This
-prevents invisible orphan files from accumulating.
+Identical retry:
 
-The earlier QR grant remains valid until it expires or is manually revoked and will
-display the report's current replacement PDF.
+```json
+{
+  "externalId": "A-88213",
+  "patientId": "PAT-2026-0200",
+  "status": "already_stored",
+  "qrGenerated": true,
+  "qr": {
+    "publicId": "RPT-9Q7HT4",
+    "url": "https://your-domain/r/RPT-9Q7HT4#t=<new-opaque-secret>",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
+    "expiresAt": "2026-08-23T10:20:00.000Z"
+  }
+}
+```
+
+Conflicting content:
+
+```json
+{
+  "externalId": "A-88213",
+  "patientId": "PAT-2026-0200",
+  "status": "conflict",
+  "qrGenerated": false,
+  "error": "This externalId already belongs to a different PDF. Send the new report with a new externalId."
+}
+```
+
+If a new PDF is written but its database insert fails, Server B removes that
+unreferenced file.
 
 ### Whole-request errors
 
 | Status | Meaning |
 |---|---|
 | `400` | Invalid multipart body or missing/invalid `metadata` |
-| `413` | Declared request or total PDF data exceeds 100 MB |
+| `413` | Complete multipart request exceeds 105 MB, or combined PDF data exceeds 100 MB |
 | `422` | Metadata validation failure, duplicate `externalId`, or more than 10 entries |
 
 ## QR single-report sharing
@@ -295,7 +330,10 @@ Server B.
 SERVER A should:
 
 1. Inspect every item in the `results` array.
-2. Retain successful QR output immediately; the plaintext QR token cannot be
+2. Treat both `stored` and `already_stored` as success and retain their QR
+   output immediately; the plaintext QR token cannot be
    reconstructed later.
-3. Retry only failed items using the same `patientId` and `externalId`.
-4. Apply bounded exponential backoff for `429`, `503`, and network failures.
+3. Retry `error` items using the same `patientId` and `externalId`.
+4. For `conflict`, preserve the original and assign the new document a new
+   `externalId`; repeatedly retrying the conflicting ID cannot succeed.
+5. Apply bounded exponential backoff for `429`, `503`, and network failures.

@@ -1,12 +1,31 @@
 import type { NextConfig } from "next";
 
+const allowedDevOrigins = process.env.ALLOWED_DEV_ORIGINS
+  ?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = {
-  // Dev-only: lets the dev server accept requests from origins other than
-  // localhost (e.g. a headless browser or another device on the LAN during
-  // testing). Has no effect in production. See Next's allowedDevOrigins docs.
-  allowedDevOrigins: ["*"],
+  output: "standalone",
+  poweredByHeader: false,
+  ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   async headers() {
     return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+          },
+          ...(process.env.NODE_ENV === "production"
+            ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]
+            : []),
+        ],
+      },
       {
         // The QR single-report viewer is a public, unauthenticated-until-token-
         // exchange page — lock it down beyond the app's normal defaults, see
