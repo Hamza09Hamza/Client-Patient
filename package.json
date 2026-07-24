@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test tests/**/*.test.ts",
     "postinstall": "prisma generate && node scripts/copy-pdf-worker.mjs",
     "deploy": "bash scripts/deploy.sh"
   },
@@ -15,7 +16,7 @@
     "jose": "^6.2.4",
     "lucide-react": "^1.25.0",
     "motion": "^12.42.2",
-    "next": "16.2.11",
+    "next": "^16.2.11",
     "ogl": "^1.0.11",
     "pdfjs-dist": "^6.1.200",
     "prisma": "^6.19.3",

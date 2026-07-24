@@ -64,11 +64,11 @@ async function main() {
   await db.patient.deleteMany();
 
   const patientsSpec = [
-    { patientId: "PAT-2026-0001", fullName: "Yacine Benhamed", email: "yacine.benhamed@example.com", phone: "+213 550 12 34 56", dateOfBirth: new Date("1988-04-12"), gender: "Male", password: "Demo-Pass-2026", results: 26 },
-    { patientId: "PAT-2026-0002", fullName: "Amira Kaci", email: "amira.kaci@example.com", phone: "+213 661 98 76 54", dateOfBirth: new Date("1993-11-03"), gender: "Female", password: "Amira-Kc26-Test", results: 12 },
-    { patientId: "PAT-2026-0003", fullName: "Mohamed Larbi", email: "m.larbi@example.com", phone: "+213 770 45 67 89", dateOfBirth: new Date("1961-02-27"), gender: "Male", password: "Moha-Lb26-Test", results: 18 },
-    { patientId: "PAT-2026-0004", fullName: "Selma Bouzid", email: "selma.bouzid@example.com", phone: null, dateOfBirth: new Date("2001-07-19"), gender: "Female", password: "Selma-Bz26-Test", results: 6 },
-    { patientId: "PAT-2026-0005", fullName: "Karim Ziani", email: null, phone: "+213 555 22 11 00", dateOfBirth: new Date("1975-09-30"), gender: "Male", password: "Karim-Zn26-Test", results: 9 },
+    { patientId: "PAT-2026-0001", username: "demo0001", fullName: "Yacine Benhamed", email: "yacine.benhamed@example.com", phone: "+213 550 12 34 56", dateOfBirth: new Date("1988-04-12"), gender: "Male", password: "Demo2026", results: 26 },
+    { patientId: "PAT-2026-0002", username: "demo0002", fullName: "Amira Kaci", email: "amira.kaci@example.com", phone: "+213 661 98 76 54", dateOfBirth: new Date("1993-11-03"), gender: "Female", password: "Amira026", results: 12 },
+    { patientId: "PAT-2026-0003", username: "demo0003", fullName: "Mohamed Larbi", email: "m.larbi@example.com", phone: "+213 770 45 67 89", dateOfBirth: new Date("1961-02-27"), gender: "Male", password: "Moha1961", results: 18 },
+    { patientId: "PAT-2026-0004", username: "demo0004", fullName: "Selma Bouzid", email: "selma.bouzid@example.com", phone: null, dateOfBirth: new Date("2001-07-19"), gender: "Female", password: "Selma001", results: 6 },
+    { patientId: "PAT-2026-0005", username: "demo0005", fullName: "Karim Ziani", email: null, phone: "+213 555 22 11 00", dateOfBirth: new Date("1975-09-30"), gender: "Male", password: "Karim975", results: 9 },
   ];
 
   let accession = 1000;
@@ -79,6 +79,7 @@ async function main() {
     const patient = await db.patient.create({
       data: {
         patientId: spec.patientId,
+        username: spec.username,
         fullName: spec.fullName,
         email: spec.email,
         phone: spec.phone,
@@ -134,7 +135,7 @@ async function main() {
     data: [
       { actorType: "SYSTEM", actorId: "seed", action: "DATABASE_SEEDED", detail: "Initial demo dataset created" },
       { actorType: "SYSTEM", actorId: "integration", action: "PATIENT_CREATED", target: "PAT-2026-0001" },
-      { actorType: "PATIENT", actorId: "PAT-2026-0001", action: "LOGIN" },
+      { actorType: "PATIENT", actorId: "demo0001", action: "LOGIN" },
     ],
   });
 
@@ -143,7 +144,7 @@ async function main() {
     results: await db.labResult.count(),
   };
   console.log(`Seeded: ${counts.patients} patients, ${counts.results} results`);
-  console.log("Demo login — patient: PAT-2026-0001 / Demo-Pass-2026");
+  console.log("Demo login — username: demo0001 / password: Demo2026 (patient record PAT-2026-0001)");
 
   if (demoShareResultId) {
     const origin = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/$/, "");

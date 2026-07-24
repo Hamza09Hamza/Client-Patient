@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Dev-only: lets the dev server accept requests from origins other than
+  // localhost (e.g. a headless browser or another device on the LAN during
+  // testing). Has no effect in production. See Next's allowedDevOrigins docs.
+  allowedDevOrigins: ["*"],
   async headers() {
     return [
       {

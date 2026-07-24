@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { join } from "path";
 
 /**
@@ -12,7 +12,8 @@ import { join } from "path";
 export const REPORTS_DIR = join(process.cwd(), "uploads", "reports");
 
 export const MAX_REPORT_BYTES = 25 * 1024 * 1024; // 25MB per PDF
-export const MAX_REPORTS_PER_BATCH = 60; // push a large backfill across several calls instead
+export const MAX_REPORTS_PER_BATCH = 10; // comfortably covers the clinic's normal 5–7 report bursts
+export const MAX_BATCH_BYTES = 100 * 1024 * 1024; // metadata + PDFs, before multipart overhead
 
 export function looksLikePdf(bytes: Buffer): boolean {
   return bytes.length > 5 && bytes.subarray(0, 5).toString("latin1") === "%PDF-";
@@ -29,4 +30,13 @@ export async function storeReportPdf(bytes: Buffer): Promise<string> {
 /** Reads a previously stored report PDF back off disk. `pdfPath` always comes from our own DB column, never user input. */
 export async function readReportPdf(pdfPath: string): Promise<Buffer> {
   return readFile(join(REPORTS_DIR, pdfPath));
+}
+
+/** Removes an internally generated stored filename. Missing files are already clean. */
+export async function deleteReportPdf(pdfPath: string): Promise<void> {
+  try {
+    await unlink(join(REPORTS_DIR, pdfPath));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
 }

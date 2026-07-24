@@ -9,13 +9,17 @@ the clinic's own internal system. Bilingual (French/English).
 Built with **Next.js 16 (App Router, TypeScript)**, **PostgreSQL + Prisma**,
 **Tailwind CSS 4**, **Motion** (animations), and **Lucide** icons.
 
-The clinic name is centralized in `src/lib/config.ts` (`CLINIC_NAME`) — change it once and
-every page and the generated PDF update.
+The clinic name is centralized in `src/lib/config.ts` (`CLINIC_NAME`) — change it
+once and the portal branding updates. Report PDFs themselves come from the clinic's
+system and are not generated or rewritten by this app.
 
 ## Features
 
 ### Patient portal (`/portal`)
-- Sign in with the clinic-issued **Patient ID + generated password**
+- Sign in with a **generated username + password** — both short, random 8-character
+  codes drawn from unambiguous letters and digits, so they're quick to read and type.
+  They are separate from the clinic's own `patientId`, which only ties reports to the
+  right account and is never used to log in
 - **Bilingual UI** — French/English switcher (top-right on every page), cookie-persisted
 - Overview dashboard: stat tiles, latest reports
 - Full history with **search, category/status filters, date range, sorting, pagination**
@@ -26,46 +30,46 @@ every page and the generated PDF update.
 - **No online password reset.** Patients never set their own password, and there's no
   in-app recovery flow — every physical report the clinic hands out is printed with a QR
   code (see "QR single-report sharing" below). Recovery is the clinic's own
-  responsibility: `POST /api/integration/patients` re-credentials a patient and hands
-  the new password back to the clinic's system, which already has it from when the
-  account was first provisioned
+  responsibility. Server B generates credentials only when the patient is first
+  provisioned; it has no password-change or password-rotation operation
 
-### Clinic report push (`/api/integration/reports`, `/api/integration/sync/reports`)
+### Clinic report push (`/api/integration/reports`)
 Reports arrive as PDFs pushed **from** the clinic's own internal system (LIS/HIS) —
-this app never calls out to fetch them. Each call sends a batch (up to 60) of
+this app never calls out to fetch them. Each call sends a batch (up to 10) of
 `{ patientId, externalId, title, collectedAt, ... }` metadata entries alongside their
 PDF bytes as multipart file parts; this app stores each file locally under
-`uploads/reports/` (upserted by `externalId`, so resending is always safe) and shows
-it in the patient's results list through the built-in PDF viewer. This direction
+`uploads/reports/` (upserted by patient + `externalId`) and shows it in the patient's
+results list through the built-in PDF viewer. A successful resend replaces the
+stored file and removes the previous unreferenced file. This direction
 works even when this app's VM has no outbound path into the clinic's network.
-Day-to-day deliveries also mint a **QR share grant** per report — a scoped,
-revocable link that shows just that one PDF with no patient login (see "QR
-single-report sharing" below); a separate endpoint imports historical backfills
-without generating QR codes. See **[docs/API.md → Current report
-delivery](docs/API.md#current-report-delivery--post-apiintegrationreports)** for
+Every push also mints a **QR share grant** per report — a scoped, revocable link
+that shows just that one PDF with no patient login (see "QR single-report sharing"
+below). See **[docs/API.md → Report
+delivery](docs/API.md#report-delivery--post-apiintegrationreports)** for
 the full request/response shape.
 
 ### QR single-report sharing (`/r/[publicId]`)
-Every report delivered (not synced) gets a scan-to-view link — no patient login,
-scoped to that one report only, expiring after 30 days, revocable, re-scannable
-within that window. The token travels in the URL fragment (never sent to the
-server on page load) and is exchanged client-side for a short-lived, path-scoped
-session cookie. Full flow and security notes:
+Every report delivered gets a scan-to-view link — no patient login, scoped to that
+one report only, expiring after 30 days, revocable, re-scannable within that window.
+The token travels in the URL fragment (never sent to the server on page load) and
+is exchanged client-side for a short-lived, path-scoped session cookie. Full flow
+and security notes:
 **[docs/API.md → QR single-report sharing](docs/API.md#qr-single-report-sharing)**.
 
-### Integration API (`/api/integration/patients`, `/api/integration/reports`, `/api/integration/sync/reports`)
+### Integration API (`/api/integration/patients`, `/api/integration/reports`)
 For the clinic's internal system (LIS/HIS) to provision patient accounts and then push
-their reports. Requests authenticate with a Bearer token — day-to-day delivery and
-historical sync use **separate keys** so one credential can't do the other's job.
-Full reference, request/response shape, and error codes: **[docs/API.md](docs/API.md)**.
+their reports. Requests authenticate with a single Bearer token.
+Full reference, request/response shape, and error codes: **[docs/API.md](docs/API.md)**
+— or **[docs/INTEGRATION-GUIDE.md](docs/INTEGRATION-GUIDE.md)** for a plain-language
+walkthrough to hand to whoever operates that system.
 
 ```bash
-# Verify/create a patient and receive generated credentials
+# Verify/create a patient and receive generated login credentials
 curl -X POST https://<host>/api/integration/patients \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"patientId":"PAT-2026-0200","fullName":"Jane Doe","email":"jane@example.com"}'
-# -> {"patientId":"PAT-2026-0200","fullName":"Jane Doe","password":"Kt7m-Rx4q-Wn9d","created":true}
-# Posting an existing patientId regenerates their password.
+# -> {"patientId":"PAT-2026-0200","username":"k7mXq2wR","fullName":"Jane Doe","password":"b8WD2Zmy","created":true}
+# Posting an existing patientId is idempotent and never changes or returns the password.
 ```
 
 ## Getting started
@@ -98,40 +102,40 @@ For a real deployment, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ### Environment variables
 
-Copy `.env` and set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
-(32+ random chars, also signs QR share sessions), `INTEGRATION_API_KEY` (16+ random
-chars — authenticates `/api/integration/patients` and `/api/integration/reports`),
-and `INTEGRATION_SYNC_API_KEY` (16+ random chars, separate from the above —
-authenticates only `/api/integration/sync/reports`); see [docs/API.md](docs/API.md).
-`PUBLIC_BASE_URL` sets the origin baked into generated QR URLs (falls back to the
-request's own origin if unset — set this explicitly behind a reverse proxy/NAT).
+Set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
+(32+ random chars, also signs QR share sessions), and `INTEGRATION_API_KEY` (16+
+random chars — authenticates `/api/integration/patients` and
+`/api/integration/reports`); see [docs/API.md](docs/API.md). `PUBLIC_BASE_URL` sets
+the origin baked into generated QR URLs (falls back to the request's own origin if
+unset — set this explicitly behind a reverse proxy/NAT).
 
 ### Demo credentials (seed data)
 
 | Role | Username | Password |
 |---|---|---|
-| Patient | `PAT-2026-0001` | `Demo-Pass-2026` |
+| Patient | `demo0001` | `Demo2026` |
+
+(Patient record `PAT-2026-0001` — the clinic id, not the login username.)
 
 ## Security model
 
 - **Passwords are hashed at rest** (scrypt, random salt per patient —
   `src/lib/password.ts`) and never stored or retrievable in plaintext afterward. The
-  plaintext exists only once, in memory, at generation/regeneration time, and is
+  plaintext exists only once, in memory, when a patient is first created, and is
   returned exactly then in the `POST /api/integration/patients` response for the
   clinic's own system (SERVER A) to keep — see [docs/API.md → POST
   /api/integration/patients](docs/API.md#post-apiintegrationpatients). This app never
-  re-sends it and has no way to look it up again; every generation and regeneration is
-  written to the audit log.
+  re-sends it, rotates it, or has any way to look it up again.
 - **Patients cannot change or reset their own password online at all** — there is no
   self-service flow of any kind, and there is no staff console either. Recovery is
-  entirely the clinic's own responsibility: calling `POST /api/integration/patients`
-  again re-credentials the patient and hands the new password back to the clinic's
-  system, the same way it did the first time.
+  entirely the clinic's own responsibility and outside this application's current
+  feature set.
 - Sessions are **HS256 JWTs in httpOnly, sameSite cookies** (8 h); the proxy does
-  optimistic role checks and every page/action re-verifies against the database
-- The integration API authenticates with a **Bearer token**, constant-time compared,
-  with separate keys for day-to-day delivery vs. historical sync — see
-  [docs/API.md](docs/API.md)
+  optimistic role checks and every page/action re-verifies against the database.
+  A malformed, expired, disabled-patient, or deleted-patient session is expired in
+  the browser before redirecting to `/login`, preventing stale-cookie redirect loops
+- The integration API authenticates with a single **Bearer token**, constant-time
+  compared — see [docs/API.md](docs/API.md)
 - QR share grants are a **separate, scoped access mechanism** — one token views
   exactly one report's PDF, never a patient's account or history. The database
   stores only a hash of the token (never the plaintext), the URL carries it in a
@@ -141,21 +145,23 @@ request's own origin if unset — set this explicitly behind a reverse proxy/NAT
 - Patients can only query their own rows (`patientDbId` scoping in every query)
 - Report PDFs live outside `public/` and are served only to the owning authenticated
   patient, or (for a QR share) a verified single-report grant
-- Every sensitive action is written to the **audit log**
+- Successful provisioning, report delivery, login/logout, report views/downloads,
+  and QR redemptions are written to the **audit log**. Audit writes are best-effort
+  and never expose passwords or QR tokens.
 
 ## Project structure
 
 ```
 docs/API.md          integration API reference (auth, endpoints, report push contract)
+docs/INTEGRATION-GUIDE.md  plain-language walkthrough for the clinic's system operator
 DEPLOYMENT.md        production deploy guide
 scripts/deploy.sh    install → migrate → build → start
 scripts/copy-pdf-worker.mjs  syncs the pdf.js worker into public/pdfjs/ (runs on postinstall)
 prisma/              schema + seed (seed refuses to run in production)
 src/proxy.ts         route guard (Next 16 proxy)
-src/lib/              db, session, password, device, rate-limit, audit,
-                       report-storage.ts (local PDF disk I/O), report-push.ts (shared
-                       ingestion core), report-share.ts (QR grant/token logic), i18n/,
-                       server actions
+src/lib/              db, session, password (generation + hashing), device,
+                       rate-limit, audit, report-storage.ts (local PDF disk I/O),
+                       report-share.ts (QR grant/token logic), i18n/, server actions
 src/components/       ui/ (buttons, fields, modals…), rb/ (animated components),
                        portal/pdf-viewer.tsx, i18n/, portal/
 src/app/
@@ -166,9 +172,8 @@ src/app/
   portal/results/[id]/download    audit-logs the download, then streams the PDF
   r/[publicId]/                   public QR single-report viewer (no login)
   r/[publicId]/file               serves the PDF for a verified QR share session
-  api/integration/patients        patient provisioning + (re)credentialing endpoint (Bearer auth)
+  api/integration/patients        idempotent patient provisioning endpoint (Bearer auth)
   api/integration/reports         report delivery + QR minting (Bearer auth)
-  api/integration/sync/reports    historical/bulk report import, no QR (separate Bearer key)
   api/public/report-access/       exchanges a QR token for a share session cookie
   api/health/                     liveness + DB check
 ```

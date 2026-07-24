@@ -50,7 +50,7 @@ export async function patientLogin(
     return { error: t(dict.rateLimitError, { minutes: Math.ceil(limited.retryAfter / 60) }) };
   }
 
-  const patient = await db.patient.findUnique({ where: { patientId: username } });
+  const patient = await db.patient.findUnique({ where: { username } });
   if (!patient || !(await verifyPasswordHash(password, patient.passwordHash))) {
     await audit("PATIENT", username, "LOGIN_FAILED", undefined, `ip=${ip}`);
     return { error: dict.genericError };
@@ -66,11 +66,11 @@ export async function patientLogin(
   });
   await createSession({
     sub: patient.id,
-    username: patient.patientId,
+    username: patient.username,
     name: patient.fullName,
     role: "patient",
   });
-  await audit("PATIENT", patient.patientId, "LOGIN", undefined, `ip=${ip}${device ? `, device=${device}` : ""}`);
+  await audit("PATIENT", patient.username, "LOGIN", undefined, `ip=${ip}${device ? `, device=${device}` : ""}`);
   redirect("/portal");
 }
 

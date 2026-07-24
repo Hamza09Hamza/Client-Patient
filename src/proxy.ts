@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
+import { db } from "@/lib/db";
 
 // The QR single-report viewer (/r/*) is public and gets a strict, nonced CSP —
 // dynamic because a fresh nonce is required on every request, see
@@ -47,21 +48,63 @@ export default async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await verifySessionToken(token) : null;
 
-  const redirect = (to: string) => NextResponse.redirect(new URL(to, request.url));
+  const clearSessionCookie = (response: NextResponse) => {
+    response.cookies.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    return response;
+  };
+  const redirect = (to: string, clearSession = false) => {
+    const response = NextResponse.redirect(new URL(to, request.url));
+    return clearSession ? clearSessionCookie(response) : response;
+  };
+  const next = (clearSession = false) => {
+    const response = NextResponse.next();
+    return clearSession ? clearSessionCookie(response) : response;
+  };
+
+  // A valid signature only proves that we issued the JWT. The patient may
+  // since have been disabled or deleted, so verify the row before treating
+  // the session as active. On a transient database error, leave the final
+  // decision to the page's authoritative DAL check rather than logging out a
+  // legitimate patient.
+  let patientActive: boolean | null = null;
+  if (session?.role === "patient") {
+    try {
+      const patient = await db.patient.findUnique({
+        where: { id: session.sub },
+        select: { status: true },
+      });
+      patientActive = patient?.status === "ACTIVE";
+    } catch {
+      patientActive = null;
+    }
+  }
+
+  if (session?.role === "patient" && patientActive === false) {
+    return redirect("/login", true);
+  }
 
   if (pathname === "/") {
-    if (session?.role === "patient") return redirect("/portal");
-    return redirect("/login");
+    if (session?.role === "patient" && patientActive !== false) return redirect("/portal");
+    return redirect("/login", Boolean(token));
   }
 
   if (pathname.startsWith("/portal")) {
-    if (session?.role !== "patient") return redirect("/login");
-    return NextResponse.next();
+    if (session?.role !== "patient") return redirect("/login", Boolean(token));
+    return next();
   }
 
-  if (pathname === "/login" && session?.role === "patient") return redirect("/portal");
+  if (pathname === "/login") {
+    if (session?.role === "patient" && patientActive === true) return redirect("/portal");
+    return next(Boolean(token && !session));
+  }
 
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {

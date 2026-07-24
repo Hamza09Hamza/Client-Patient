@@ -16,22 +16,28 @@ function pick(pool: string, n: number): string {
   return out;
 }
 
+const CODE_ALPHABET = UPPER + LOWER + DIGIT;
+const CODE_LENGTH = 8;
+
 /**
- * Generates a strong but communicable password: three 4-char groups
- * (e.g. "Kt7m-Rx4q-Wn9d"), ~62 bits of entropy, each group mixing cases
- * and a digit so common complexity policies are satisfied.
+ * Generates a short, simple 8-character code from mixed-case letters and
+ * digits (without guaranteeing every class in each code), with no dashes or
+ * grouping — ~46 bits of entropy, easy to read off a printed
+ * report and type back in. Used for both generated usernames and passwords
+ * (generatePassword / generateUsername below) so patient login is quick on
+ * a phone keyboard: two short codes rather than one long one.
  */
+function generateCode(): string {
+  return pick(CODE_ALPHABET, CODE_LENGTH);
+}
+
+/** A patient's login identifier — generated once at initial provisioning. */
+export function generateUsername(): string {
+  return generateCode();
+}
+
 export function generatePassword(): string {
-  const group = () => {
-    const chars = [pick(UPPER, 1), pick(LOWER, 1), pick(DIGIT, 1), pick(UPPER + LOWER + DIGIT, 1)];
-    // shuffle inside the group so the pattern position isn't fixed
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join("");
-  };
-  return [group(), group(), group()].join("-");
+  return generateCode();
 }
 
 /**
@@ -51,9 +57,16 @@ export async function hashPassword(plain: string): Promise<string> {
 /** Constant-time verification against a "salt:hash" value from hashPassword. */
 export async function verifyPasswordHash(submitted: string, stored: string): Promise<boolean> {
   const [salt, hashHex] = stored.split(":");
-  if (!salt || !hashHex) return false;
+  if (
+    !salt ||
+    !hashHex ||
+    !/^[0-9a-f]{32}$/i.test(salt) ||
+    !/^[0-9a-f]{128}$/i.test(hashHex)
+  ) {
+    return false;
+  }
   const expected = Buffer.from(hashHex, "hex");
-  const derived = (await scrypt(submitted, salt, expected.length)) as Buffer;
+  const derived = (await scrypt(submitted, salt, SCRYPT_KEYLEN)) as Buffer;
   if (derived.length !== expected.length) return false;
   return timingSafeEqual(derived, expected);
 }

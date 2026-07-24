@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 
 /**
  * QR single-report sharing. A grant is a scoped, revocable bearer credential
- * for exactly one report — minted at push time (never for a bulk sync, see
- * report-push.ts) and handed to the patient as a QR code encoding
- * `{origin}/r/{publicId}#t={token}`.
+ * for exactly one report — minted at push time (see
+ * src/app/api/integration/reports/route.ts) and handed to the patient as a
+ * QR code encoding `{origin}/r/{publicId}#t={token}`.
  *
  * The plaintext token only ever exists in memory at mint time and inside the
  * QR itself — the database stores only its SHA-256 hash, so a QR image can

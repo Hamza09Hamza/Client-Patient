@@ -6,7 +6,7 @@ export type SessionRole = "patient";
 export interface SessionPayload {
   /** database id of the Patient row */
   sub: string;
-  /** login identifier (patient ID) shown in the UI */
+  /** generated portal login username shown in the UI */
   username: string;
   name: string;
   role: SessionRole;

@@ -27,10 +27,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   await audit("PATIENT", session.username, "RESULT_DOWNLOADED", result.reference);
+  const safeReference = result.reference.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "report";
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${result.reference}.pdf"`,
+      "Content-Disposition": `attachment; filename="${safeReference}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

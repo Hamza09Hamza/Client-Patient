@@ -1,119 +1,147 @@
 # Deployment
 
-## What you need
+This application is a patient portal plus a server-to-server integration API.
+There is no admin console: the clinic's own system (SERVER A) provisions patients
+and sends report PDFs to this application (SERVER B).
 
-- A **PostgreSQL 15+** database reachable from the app server (managed — Neon, Supabase,
-  RDS, Railway — or self-hosted; `docker-compose.yml` in this repo covers the
-  self-hosted case)
-- A place to run a **Node.js 20+** process (a VM, a container host, or a platform like
-  Railway/Render/Fly.io). Vercel also works — see the note at the bottom.
-- A reverse proxy or platform edge that terminates **TLS** (Next.js itself serves plain
-  HTTP; don't expose port 3000 directly to the internet)
+## Requirements
+
+- Node.js 20+
+- PostgreSQL 15+
+- A persistent filesystem volume for `uploads/reports/`
+- A reverse proxy or platform edge that terminates TLS
+
+Do not expose the Next.js process on port 3000 directly to the internet.
 
 ## Environment variables
 
-Set these on the server — don't commit them. `.env` in this repo is for local
-development only (and is gitignored).
-
-| Variable | Required | Notes |
+| Variable | Required | Purpose |
 |---|---|---|
-| `DATABASE_URL` | yes | `postgresql://user:pass@host:5432/dbname?schema=public` |
-| `AUTH_SECRET` | yes | Random string, **32+ characters**. Signs patient/admin session cookies. Generate with `openssl rand -base64 48`. Rotating it logs everyone out. |
-| `INTEGRATION_API_KEY` | yes | Random string, **16+ characters**. Shared secret for `/api/integration/*` (see [docs/API.md](docs/API.md)). Generate with `openssl rand -hex 32`. |
-| `SMTP_*` | no | Only needed if you wire up automated emails later; unused today (the admin console currently generates a `mailto:` link instead) |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `AUTH_SECRET` | yes | Random value of at least 32 characters; signs patient and QR-share session cookies |
+| `INTEGRATION_API_KEY` | yes | Random value of at least 16 characters; authenticates SERVER A |
+| `PUBLIC_BASE_URL` | production | Public HTTPS origin placed in generated QR URLs, for example `https://patients.example.com` |
+| `PORT` | no | Next.js port, default `3000` |
+| `HOST` | no | Bind address, default `0.0.0.0` |
+
+Generate secrets outside the repository:
+
+```bash
+openssl rand -base64 48  # AUTH_SECRET
+openssl rand -hex 32     # INTEGRATION_API_KEY
+```
+
+Never place these values in source code, client-side applications, URLs, or logs.
+
+## Database migration warning
+
+Always back up the database before applying migrations.
+
+The early development migrations
+`20260723142849_admin_removal_and_password_hashing` and
+`20260723152513_add_patient_username` delete existing patient rows because the
+database contained demo data when those migrations were written. Through cascading
+foreign keys, that also deletes those patients' reports and QR grants.
+
+For a new empty installation, applying the full migration history is expected. For
+an older populated installation that has not already applied those migrations, do
+not run `prisma migrate deploy` until the data has been backed up and a non-destructive
+data migration has been prepared.
+
+Check migration state before deployment:
+
+```bash
+npx prisma migrate status
+```
 
 ## Deploy
 
-```bash
-git clone <this-repo> && cd Clinic-Patient
-DATABASE_URL="postgresql://..." \
-AUTH_SECRET="$(openssl rand -base64 48)" \
-INTEGRATION_API_KEY="$(openssl rand -hex 32)" \
-  ./scripts/deploy.sh
-```
-
-`scripts/deploy.sh` does, in order:
-1. Validates the three required env vars are set and long enough
-2. `npm ci`
-3. `prisma generate`
-4. `prisma migrate deploy` — applies pending migrations, safe to re-run, **does not
-   touch existing data**
-5. `npm run build`
-6. Starts the server: `next start --hostname 0.0.0.0 --port ${PORT:-3000}`
-
-Re-run the same script for every subsequent deploy (new migrations are picked up
-automatically; nothing is destroyed).
-
-### First deploy only: create the admin account
-
-The seed script (`prisma/seed.ts`) creates realistic **demo** data — it deletes
-existing rows first, so it must never run against a real clinic database. It
-refuses to run when `NODE_ENV=production` unless you explicitly pass
-`ALLOW_PROD_SEED=true`. For a first deploy, create the one real admin account by hand
-instead:
+With the required environment variables already exported:
 
 ```bash
-DATABASE_URL="postgresql://..." node -e '
-const { PrismaClient } = require("@prisma/client");
-const db = new PrismaClient();
-db.admin.create({
-  data: { username: "admin", fullName: "Clinic Administrator", password: "<choose-a-strong-password>" },
-}).then(() => console.log("admin created")).finally(() => db.\$disconnect());
-'
+./scripts/deploy.sh
 ```
 
-Sign in once and change that password from the console (Settings → Console
-password).
+The script:
 
-### Health check
+1. Validates required environment variables.
+2. Installs the locked dependency tree with `npm ci`.
+3. Generates the Prisma client.
+4. Applies pending migrations.
+5. Builds the production Next.js application.
+6. Starts `next start` in the foreground.
 
-`GET /api/health` returns `{"status":"ok","db":"up"}` (200) or a 503 if the database
-is unreachable — point your load balancer / process manager at it.
+Run it under a process manager such as systemd, PM2, or a container supervisor.
 
-### Keeping it running
+## Patient provisioning
 
-`scripts/deploy.sh` ends by running the server in the foreground (`exec next start`)
-so a process manager can supervise it directly:
+There is no application-side administrator to create accounts. SERVER A calls:
 
-- **systemd**: `ExecStart=/path/to/scripts/deploy.sh`, `Restart=on-failure`
-- **pm2**: `pm2 start scripts/deploy.sh --name clinic-portal`
-- **Docker**: use the deploy script as the container `CMD` (build a small Node 20
-  image, `COPY` the repo, run `npm ci` at image-build time to keep startup fast,
-  then `CMD ["./scripts/deploy.sh"]`)
+```text
+POST /api/integration/patients
+```
 
-### Uploaded ID photos
+For a new patient, Server B generates a username and password, stores only the
+scrypt password hash, and returns the plaintext password once in that response.
+Calling the endpoint again for the same `patientId` is idempotent: it returns the
+existing username and does not change or return the password.
 
-Patient-submitted ID photos for password-reset requests are written to
-`./uploads/` on the server's local disk (never under `public/` — they're served
-only to authenticated admins via `/admin/files/[name]`). On a multi-instance or
-ephemeral-filesystem deployment (serverless, container platforms that don't
-persist disk), point this at a persistent volume or adapt
-`src/app/forgot-password/actions.ts` and `src/app/admin/files/[name]/route.ts` to
-use object storage (S3-compatible) instead.
+Do not run the seed script in a real environment. It deletes all patients, reports,
+QR grants, and audit logs before installing demo data. It refuses to run when
+`NODE_ENV=production` unless `ALLOW_PROD_SEED=true`, but staging and other
+non-production environments still require care.
 
-### Vercel note
+## Persistent report storage
 
-The app is a standard Next.js App Router project and deploys to Vercel with the
-same env vars. Two adjustments:
-- Uploaded ID photos need object storage (see above) — Vercel's filesystem isn't
-  persistent across deployments/instances.
-- Run migrations from CI/your machine (`npx prisma migrate deploy`) rather than
-  from `scripts/deploy.sh`, since Vercel doesn't run a long-lived shell as part of
-  its build.
+Integrated PDFs are stored under:
 
-## Security notes for production
+```text
+uploads/reports/
+```
 
-- **Passwords are stored in plaintext** in this system, by product decision (so
-  admins can view a patient's current password, not just regenerate it — see
-  README → Security). This makes the database itself the single point of
-  failure. Compensate for it:
-  - Enable encryption at rest on the database (most managed Postgres providers do
-    this by default — confirm it).
-  - Restrict database network access to the app server only (VPC/security group,
-    no public endpoint).
-  - Encrypt backups, and restrict who can restore/read them.
-  - Limit who has `SELECT` access on the `Patient`/`Admin` tables in production.
-- Put the app behind TLS end-to-end; session cookies are only marked `Secure`
-  when `NODE_ENV=production`, which `scripts/deploy.sh` sets.
-- Rotate `AUTH_SECRET` and `INTEGRATION_API_KEY` if either is ever exposed
-  (commit history, logs, a leaked `.env`).
+Mount that directory on durable storage and restrict filesystem access to the
+application's operating-system user. Database backups alone do not contain the PDF
+bytes; back up the database and report volume together.
+
+For multiple Server B instances, use a shared persistent volume or replace
+`src/lib/report-storage.ts` with object storage. Instance-local disks will otherwise
+serve different subsets of reports.
+
+Vercel and other ephemeral/serverless filesystems are not supported by the current
+local-storage implementation. They require an object-storage adapter before
+production use.
+
+## Reverse proxy limits
+
+SERVER A normally sends 5–7 reports together. Server B accepts at most 10 reports,
+25 MB per PDF, and 100 MB of PDF data per request. Configure the reverse proxy with
+a compatible request-body limit slightly above 100 MB to allow multipart overhead.
+
+TLS must remain enabled end-to-end. Configure the proxy to replace, rather than
+append arbitrary client values to, forwarding headers such as `X-Forwarded-For`.
+
+## Health check
+
+```text
+GET /api/health
+```
+
+Successful response:
+
+```json
+{"status":"ok","db":"up"}
+```
+
+A database failure returns HTTP `503`.
+
+## Production checklist
+
+- Back up PostgreSQL and `uploads/reports/`.
+- Confirm migration state before deployment.
+- Set `PUBLIC_BASE_URL` to the canonical HTTPS origin.
+- Restrict database access to Server B.
+- Restrict report-directory permissions to the Server B OS user.
+- Terminate TLS at a trusted reverse proxy.
+- Configure the proxy request-body limit.
+- Rotate `AUTH_SECRET` and `INTEGRATION_API_KEY` if either is exposed.
+- Point monitoring at `/api/health`.

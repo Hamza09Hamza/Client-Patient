@@ -25,7 +25,13 @@ enum ActorType {
 
 model Patient {
   id            String        @id @default(cuid())
-  patientId     String        @unique // clinic-issued identifier, used as login username
+  patientId     String        @unique // clinic-issued identifier (e.g. "PAT-2026-0001") — ties
+                                       // pushed reports to this patient, not used to log in
+  // short generated login identifier (8 chars, see generateUsername in
+  // src/lib/password.ts) — separate from patientId so login credentials stay
+  // short and simple regardless of the clinic's own ID format. Generated once
+  // at provisioning.
+  username      String        @unique
   fullName      String
   email         String?
   phone         String?
@@ -33,12 +39,10 @@ model Patient {
   gender        String?
   status        PatientStatus @default(ACTIVE)
   // scrypt hash ("salt:hash", see src/lib/password.ts) — the plaintext is
-  // returned exactly once, in the API response at generation/regeneration
-  // time (POST /api/integration/patients), for the clinic's own system
-  // (SERVER A) to retain; it is never stored or retrievable here again
+  // returned exactly once when the patient is first provisioned through
+  // POST /api/integration/patients, for the clinic's own system (SERVER A)
+  // to retain; it is never stored, rotated, or retrievable here again
   passwordHash  String
-  // set when a password is (re)generated; cleared on first login
-  mustChangePassword Boolean  @default(false)
   lastLoginAt   DateTime?
   // human-readable OS/browser/device parsed from the User-Agent at last login,
   // e.g. "macOS · Safari" or "Android · Chrome Mobile (SM-G991B)" — best effort,
@@ -54,7 +58,7 @@ model Patient {
 
 model LabResult {
   id                String       @id @default(cuid())
-  reference         String       @unique // lab accession / report number
+  reference         String       // lab accession / report number; may repeat for different patients
   patient           Patient      @relation(fields: [patientDbId], references: [id], onDelete: Cascade)
   patientDbId       String
   category          String // Hematology, Biochemistry, Serology, ...
@@ -76,6 +80,7 @@ model LabResult {
   shareGrants       ReportShareGrant[]
 
   @@unique([patientDbId, sourceRef])
+  @@index([reference])
   @@index([patientDbId, collectedAt(sort: Desc)])
   @@index([category])
   @@index([status])
@@ -105,7 +110,7 @@ model AuditLog {
   id        String    @id @default(cuid())
   actorType ActorType
   actorId   String // patient ID / "integration" / "seed"
-  action    String // e.g. PATIENT_CREATED, PASSWORD_REGENERATED, LOGIN, RESULT_VIEWED
+  action    String // e.g. PATIENT_CREATED, PATIENT_ALREADY_EXISTS, LOGIN, RESULT_VIEWED
   target    String? // e.g. patient ID or result reference the action applies to
   detail    String?
   createdAt DateTime  @default(now())

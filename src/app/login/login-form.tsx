@@ -23,14 +23,14 @@ export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
       )}
 
       <Field
-        label={dict.patientIdLabel}
+        label={dict.usernameLabel}
         name="username"
-        placeholder={dict.patientIdPlaceholder}
+        placeholder={dict.usernamePlaceholder}
         autoComplete="username"
         autoCapitalize="none"
         spellCheck={false}
         required
-        hint={dict.patientIdHint}
+        hint={dict.usernameHint}
       />
 
       <PasswordField label={dict.passwordLabel} name="password" autoComplete="current-password" required />
