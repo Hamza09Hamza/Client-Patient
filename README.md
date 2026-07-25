@@ -1,4 +1,4 @@
-# Clinique Amina — Laboratory Results Website
+#  --— Laboratory Results Website
 
 A patient-facing website where clinic patients securely view, filter, and download
 their laboratory results — as PDFs pushed from the clinic's own system — plus a
