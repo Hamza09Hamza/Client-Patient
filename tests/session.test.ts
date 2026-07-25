@@ -14,6 +14,12 @@ async function sign(payload: Record<string, unknown>): Promise<string> {
     .sign(key);
 }
 
+function tamperSignature(token: string): string {
+  const [header, payload, signature] = token.split(".");
+  const first = signature[0] === "a" ? "b" : "a";
+  return `${header}.${payload}.${first}${signature.slice(1)}`;
+}
+
 test("patient session tokens return the expected scoped payload", async () => {
   process.env.AUTH_SECRET = TEST_SECRET;
   const token = await sign({
@@ -72,9 +78,8 @@ test("session verification rejects tokens signed with another secret or modified
     name: "Jane Doe",
     role: "patient",
   });
-  const tamperedToken = `${validToken.slice(0, -1)}${validToken.endsWith("a") ? "b" : "a"}`;
 
   assert.equal(await verifySessionToken(wrongSecretToken), null);
-  assert.equal(await verifySessionToken(tamperedToken), null);
+  assert.equal(await verifySessionToken(tamperSignature(validToken)), null);
   assert.equal(await verifySessionToken("not-a-jwt"), null);
 });
