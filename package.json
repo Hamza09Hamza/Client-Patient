@@ -17,7 +17,12 @@
     "push:verified": "bash scripts/push.sh",
     "postinstall": "prisma generate && node scripts/copy-pdf-worker.mjs",
     "deploy": "bash scripts/deploy.sh",
-    "status:server": "bash scripts/status.sh"
+    "status:server": "bash scripts/status.sh",
+    "check:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",
+    "check:win:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -Release",
+    "push:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push.ps1",
+    "deploy:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "status:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/status.ps1"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
