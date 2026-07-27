@@ -5,10 +5,30 @@ const allowedDevOrigins = process.env.ALLOWED_DEV_ORIGINS
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// Server Actions compare the browser's Origin header against Host/
+// X-Forwarded-Host and abort on mismatch (CSRF protection) — see
+// node_modules/next/dist/docs/.../serverActions.md "allowedOrigins". Behind
+// a reverse proxy on a non-default port (our nginx setup, currently :8443)
+// this needs to be explicit, or every Server Action (login, logout, etc.)
+// gets silently rejected. Derived from PUBLIC_BASE_URL so it can't drift out
+// of sync with the actual public origin.
+let serverActionsAllowedOrigins: string[] | undefined;
+if (process.env.PUBLIC_BASE_URL) {
+  try {
+    serverActionsAllowedOrigins = [new URL(process.env.PUBLIC_BASE_URL).host];
+  } catch {
+    // Malformed PUBLIC_BASE_URL is already validated where it's required
+    // (src/app/api/integration/reports/route.ts); don't crash the build over it here.
+  }
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
+  ...(serverActionsAllowedOrigins?.length
+    ? { experimental: { serverActions: { allowedOrigins: serverActionsAllowedOrigins } } }
+    : {}),
   async headers() {
     return [
       {

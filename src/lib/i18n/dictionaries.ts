@@ -11,6 +11,12 @@ const dictionaries = {
       save: "Save",
       loading: "Loading…",
     },
+    errorBoundary: {
+      title: "Something went wrong",
+      description: "We couldn't load this page. This is usually temporary — try again in a moment.",
+      retry: "Try again",
+      backToOverview: "Back to overview",
+    },
     login: {
       heroLine1: "Your results,",
       heroLine2: "whenever you need them.",
@@ -152,6 +158,12 @@ const dictionaries = {
       done: "Terminé",
       save: "Enregistrer",
       loading: "Chargement…",
+    },
+    errorBoundary: {
+      title: "Une erreur est survenue",
+      description: "Impossible de charger cette page. C'est généralement temporaire — réessayez dans un instant.",
+      retry: "Réessayer",
+      backToOverview: "Retour à l'aperçu",
     },
     login: {
       heroLine1: "Vos résultats,",

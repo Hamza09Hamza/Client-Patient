@@ -61,6 +61,29 @@ Only `patientId` and `fullName` are required (for a brand-new patient).
 your system already uses (3–60 characters, letters/numbers/dashes). We never
 generate this one; you own it.
 
+### Try it with curl
+
+```bash
+KEY="<your INTEGRATION_API_KEY>"
+
+curl -X POST https://your-domain/api/integration/patients \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patientId": "PAT-2026-0200",
+        "fullName": "Jane Doe",
+        "email": "jane@example.com",
+        "phone": "+213 555 00 11 22",
+        "dateOfBirth": "1990-05-15",
+        "gender": "Female"
+      }'
+```
+
+Swap `https://your-domain` for the portal's real address (in local dev,
+`http://localhost:3000`), and `$KEY` for the actual `INTEGRATION_API_KEY`
+value. The response is the JSON shown below, printed straight to your
+terminal.
+
 ### What you get back
 
 ```json
@@ -171,6 +194,44 @@ Each PDF must be under 25MB, total PDF data must stay under 100MB, and each file
 must be an actual PDF (we check for the standard `%PDF-` file header). Anything
 else is rejected without failing the remaining valid items.
 
+### Try it with curl — one report
+
+```bash
+KEY="<your INTEGRATION_API_KEY>"
+
+curl -X POST https://your-domain/api/integration/reports \
+  -H "Authorization: Bearer $KEY" \
+  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"A-88213","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-06-14","physician":"Dr. S. Haddad","specimen":"Whole blood (EDTA)"}]' \
+  -F "file:A-88213=@/path/to/A-88213.pdf;type=application/pdf"
+```
+
+Two things to get right:
+
+- The `-F 'metadata=[...]'` part is a **JSON array as a string** — even for
+  one report, it's still wrapped in `[ ]`. Quote the whole thing so your
+  shell doesn't mangle the inner double quotes.
+- The `file:` part name must match `externalId` from the metadata **exactly**
+  — `file:A-88213`, not `file:a-88213` or `file:report1`. That's the only
+  thing that links the PDF bytes to its metadata entry.
+
+### Try it with curl — a batch of several reports
+
+Same request, just more metadata entries and one `-F` file part per report:
+
+```bash
+curl -X POST https://your-domain/api/integration/reports \
+  -H "Authorization: Bearer $KEY" \
+  -F 'metadata=[
+        {"patientId":"PAT-2026-0200","externalId":"A-88213","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-06-14"},
+        {"patientId":"PAT-2026-0200","externalId":"A-88214","title":"Lipid Panel","category":"Biochemistry","collectedAt":"2026-06-14"}
+      ]' \
+  -F "file:A-88213=@/path/to/A-88213.pdf;type=application/pdf" \
+  -F "file:A-88214=@/path/to/A-88214.pdf;type=application/pdf"
+```
+
+Check each item's `status` in the response — one bad report in a batch
+(unknown patient, corrupt PDF, etc.) does not fail the others.
+
 ### What you get back
 
 Always a `200` response if the request itself was well-formed — individual
@@ -227,6 +288,12 @@ same PDF again with the same **`externalId`**. We compare its SHA-256 fingerprin
 
 A corrected PDF or any genuinely new report must have a new `externalId`. This
 keeps the patient's report history append-only.
+
+**In practice, retrying is just re-running the exact same curl command above**
+— same `externalId`, same PDF file. If the bytes match what we already have,
+you get `"status": "already_stored"` back instead of an error; nothing is
+duplicated. Only send a different `externalId` for an actually different or
+corrected document.
 
 ---
 
