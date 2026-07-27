@@ -9,20 +9,34 @@ the shorter "what do I actually do" version.
 
 Your system (we'll call it **SERVER A** — your LIS/HIS, registration desk
 software, whatever generates patient records and report PDFs) talks to the
-patient portal (**SERVER B**, this app) by calling two endpoints, in order,
-for every patient:
+patient portal (**SERVER B**, this app) by calling two endpoints — the second
+one twice, at two different moments — for every patient:
 
 ```
 1. You send us a patient ID  ──────▶  We send back a username + password
-                                        (save these — we can't show them again)
+   (once, at registration)             (save these — we can't show them again)
 
-2. You send us patientID + PDF ────▶  We send back a QR code
-   (whenever a report is ready)        (we store the PDF on our end)
+2. You send us patientID + an        ▶  We send back a QR code
+   appointment/accession number         (a report "slot" now exists, with no
+   (e.g. at intake — no PDF yet)         PDF yet — scanning the QR shows a
+                                          "not ready yet" page)
+
+3. Later, you send us the PDF for    ▶  We send back the SAME QR code
+   that same appointment number         (the report is now complete —
+                                          scanning that same code now shows
+                                          the PDF)
 ```
+
+Steps 2 and 3 are literally **the same endpoint**,
+`POST /api/integration/reports` — whether you attach a file or not is what
+decides which of the two happens. If your workflow doesn't have a separate
+intake moment, you can also skip straight to step 3: send the PDF the first
+time, with no prior step 2 call, and we create and complete the report in one
+shot.
 
 You always call us. We never call you. This works even if your network has no
 outbound path reachable from us — as long as you can make an HTTPS request
-out to us, both steps work.
+out to us, every step works.
 
 Every request needs one header, on both endpoints:
 
@@ -132,19 +146,97 @@ makes network retries idempotent.
 
 ---
 
-## Step 2 — Deliver a report
+## Step 2 — Pre-register the appointment and get the QR
+
+**Call this at intake** — the moment you create the appointment/accession
+number (e.g. `LAB-26070424`) for a patient, before the sample has even been
+analyzed. This is what lets you print the QR code on the patient's card right
+away, alongside their username and password from step 1, like this:
+
+```
+┌─────────────────────────┐
+│      CLINIQUE AMINA      │
+│      PATIENT PORTAL      │
+│                           │
+│    SNOUSSI SEKKAI         │
+│  NIP  PAT-25-16411        │
+│  RDV  LAB-26070424 · 26/07/2026 │
+│                           │
+│   Scan to view results    │
+│   [ QR CODE ]             │
+│                           │
+│   Username: vkCcGpyH      │
+│   Password: aBhRaqtB      │
+└─────────────────────────┘
+```
+
+This is the same endpoint as step 3 (`POST /api/integration/reports`) — the
+only difference is you send metadata **without a file part**. The patient
+must already be registered (step 1); if we don't recognize the `patientId`,
+this is rejected with an error, but the rest of the batch still goes through.
+
+```bash
+KEY="<your INTEGRATION_API_KEY>"
+
+curl -X POST https://your-domain/api/integration/reports \
+  -H "Authorization: Bearer $KEY" \
+  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","collectedAt":"2026-07-26"}]'
+```
+
+No file part at all — just the `metadata` field, still wrapped in `[ ]`.
+`externalId` is your appointment/accession number; you'll use this exact same
+value again in step 3 to attach the PDF. `title` and `category` are optional
+here — if you don't know the test type yet, leave them out; we show
+"Pending report" in the meantime and you can fill it in later.
+
+### What you get back
+
+```json
+{
+  "results": [
+    {
+      "externalId": "LAB-26070424",
+      "patientId": "PAT-2026-0200",
+      "status": "pending_created",
+      "qrGenerated": true,
+      "qr": {
+        "publicId": "RPT-7K4MX2",
+        "url": "https://your-domain/r/RPT-7K4MX2#t=<opaque-secret>",
+        "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
+        "expiresAt": "2026-08-25T10:15:00.000Z"
+      }
+    }
+  ]
+}
+```
+
+`qr.svg` is a **ready-to-print SVG image**. Print it on the card now. Until
+the PDF actually arrives (step 3), scanning it shows the patient a "results
+aren't ready yet" page — not an error, just a polite wait message.
+
+**This QR does not change later.** Whatever `qr.url` you print now is the
+same one that will show the finished PDF once step 3 completes — no reprint,
+no reconciling two different codes. Retrying this same call (e.g. because you
+weren't sure the first one went through) is safe too: you'll get
+`status: "pending_exists"` back with that identical QR, not a new one.
+
+If your workflow doesn't have a distinct intake moment — you only ever send a
+report once its PDF already exists — you can skip this step entirely and go
+straight to step 3 below; it creates and completes the report in one call.
+
+---
+
+## Step 3 — Attach the PDF once it's ready
 
 **Call this whenever a report PDF is ready** — one at a time, or batched up
 to 10 reports per call. The normal clinic burst of 5–7 reports fits in one
-request. The patient must already
-be registered (step 1) — if we don't recognize the `patientId`, that report
-is rejected with an error (see below), but the rest of the batch still goes
-through.
+request. Same endpoint, same `externalId` as step 2 — this time **with** the
+file part attached.
 
-This request looks different from step 1 because you're sending an actual
+This request looks different from steps 1–2 because you're sending an actual
 file (the PDF), not just text data. You can't put raw binary bytes inside a
-JSON body, so this uses a different format called **`multipart/form-data`**
-— the same mechanism a plain HTML form uses when it has a file-upload field.
+JSON body, so this uses a format called **`multipart/form-data`** — the same
+mechanism a plain HTML form uses when it has a file-upload field.
 Practically, this means: instead of one JSON blob, the request body is split
 into several **named parts**. Some parts are text (the metadata), one part
 per report is the actual PDF file — often called a "blob" in JavaScript/web
@@ -163,10 +255,10 @@ hand-construct anything, just tell your library "here's a file field."
    [
      {
        "patientId": "PAT-2026-0200",
-       "externalId": "A-88213",
+       "externalId": "LAB-26070424",
        "title": "Complete Blood Count",
        "category": "Hematology",
-       "collectedAt": "2026-06-14",
+       "collectedAt": "2026-07-26",
        "physician": "Dr. S. Haddad",
        "specimen": "Whole blood (EDTA)",
        "notes": "optional"
@@ -177,16 +269,16 @@ hand-construct anything, just tell your library "here's a file field."
    | Field | Required | What it is |
    |---|---|---|
    | `patientId` | yes | Must match a patient already registered in step 1 |
-   | `externalId` | yes | **Your own** document id for this report — ties this metadata entry to its file part (see below), and lets you safely retry the same report later (see "Retrying the same report" below) |
-   | `title` | yes | Shown to the patient as the report name |
-   | `category` | no | e.g. "Hematology" — defaults to "Clinic report" if you leave it out |
-   | `collectedAt` | yes | Date the sample was collected (ISO format, e.g. `2026-06-14`) |
+   | `externalId` | yes | **Your own** appointment/document id for this report — the same value you used in step 2, if you called it. Ties this metadata entry to its file part (see below), and lets you safely retry the same report later (see "Retrying the same report" below) |
+   | `title` | no | Shown to the patient as the report name. If you already set it in step 2, you can leave it out here; if you send it, it overwrites whatever was there |
+   | `category` | no | e.g. "Hematology" — defaults to "Clinic report" if never set |
+   | `collectedAt` | yes | Date the sample was collected (ISO format, e.g. `2026-07-26`). Only takes effect if this report doesn't already exist; if step 2 already set it, this is ignored |
    | `physician`, `specimen`, `notes` | no | Free text, shown in the report detail |
 
 2. **One file part per report**, named `file:<externalId>` — literally the
    word `file:` followed by that report's `externalId` from the metadata
-   above. So if `externalId` is `A-88213`, the file part is named
-   `file:A-88213`, and it should be the raw PDF bytes for that specific
+   above. So if `externalId` is `LAB-26070424`, the file part is named
+   `file:LAB-26070424`, and it should be the raw PDF bytes for that specific
    report. This naming is how we match each PDF to its metadata entry — the
    parts don't need to arrive in any particular order.
 
@@ -201,8 +293,8 @@ KEY="<your INTEGRATION_API_KEY>"
 
 curl -X POST https://your-domain/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
-  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"A-88213","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-06-14","physician":"Dr. S. Haddad","specimen":"Whole blood (EDTA)"}]' \
-  -F "file:A-88213=@/path/to/A-88213.pdf;type=application/pdf"
+  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26","physician":"Dr. S. Haddad","specimen":"Whole blood (EDTA)"}]' \
+  -F "file:LAB-26070424=@/path/to/LAB-26070424.pdf;type=application/pdf"
 ```
 
 Two things to get right:
@@ -211,8 +303,8 @@ Two things to get right:
   one report, it's still wrapped in `[ ]`. Quote the whole thing so your
   shell doesn't mangle the inner double quotes.
 - The `file:` part name must match `externalId` from the metadata **exactly**
-  — `file:A-88213`, not `file:a-88213` or `file:report1`. That's the only
-  thing that links the PDF bytes to its metadata entry.
+  — `file:LAB-26070424`, not `file:lab-26070424` or `file:report1`. That's
+  the only thing that links the PDF bytes to its metadata entry.
 
 ### Try it with curl — a batch of several reports
 
@@ -222,11 +314,11 @@ Same request, just more metadata entries and one `-F` file part per report:
 curl -X POST https://your-domain/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[
-        {"patientId":"PAT-2026-0200","externalId":"A-88213","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-06-14"},
-        {"patientId":"PAT-2026-0200","externalId":"A-88214","title":"Lipid Panel","category":"Biochemistry","collectedAt":"2026-06-14"}
+        {"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26"},
+        {"patientId":"PAT-2026-0200","externalId":"LAB-26070425","title":"Lipid Panel","category":"Biochemistry","collectedAt":"2026-07-26"}
       ]' \
-  -F "file:A-88213=@/path/to/A-88213.pdf;type=application/pdf" \
-  -F "file:A-88214=@/path/to/A-88214.pdf;type=application/pdf"
+  -F "file:LAB-26070424=@/path/to/LAB-26070424.pdf;type=application/pdf" \
+  -F "file:LAB-26070425=@/path/to/LAB-26070425.pdf;type=application/pdf"
 ```
 
 Check each item's `status` in the response — one bad report in a batch
@@ -242,7 +334,7 @@ reports can still fail without sinking the whole batch, so check the
 {
   "results": [
     {
-      "externalId": "A-88213",
+      "externalId": "LAB-26070424",
       "patientId": "PAT-2026-0200",
       "status": "stored",
       "qrGenerated": true,
@@ -250,11 +342,11 @@ reports can still fail without sinking the whole batch, so check the
         "publicId": "RPT-7K4MX2",
         "url": "https://your-domain/r/RPT-7K4MX2#t=<opaque-secret>",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
-        "expiresAt": "2026-08-22T10:15:00.000Z"
+        "expiresAt": "2026-08-25T11:00:00.000Z"
       }
     },
     {
-      "externalId": "A-88214",
+      "externalId": "LAB-26070430",
       "patientId": "PAT-2026-0311",
       "status": "error",
       "qrGenerated": false,
@@ -264,25 +356,31 @@ reports can still fail without sinking the whole batch, so check the
 }
 ```
 
-For every successfully stored report, `qr.svg` is a **ready-to-print SVG
-image** of a QR code. Print it directly on the physical report. When a
-patient scans it, they see just that one PDF — instantly, with no login —
-on their phone. It stops working automatically after 30 days, or sooner if
-you ask us to revoke it. It doesn't reveal the patient's username, password,
-or any other report — just that one file.
+Notice `qr.publicId` here (`RPT-7K4MX2`) is the **exact same one** from step
+2's example above — if you already printed that card at intake, it now shows
+the finished PDF with nothing more to do. If you skipped step 2 for this
+report, `status` is still `"stored"` and this is the first time you're seeing
+this QR — print it now, same as before.
+
+When a patient scans a report's QR, they see just that one PDF — instantly,
+with no login — on their phone. It stops working automatically 30 days after
+it was minted (or 30 days after the PDF attached, if that QR started life in
+step 2), or sooner if you ask us to revoke it. It doesn't reveal the
+patient's username, password, or any other report — just that one file.
 
 On our end, once a report comes in successfully: we save the PDF to our own
-storage, record the report's details against the matching patient, and mint
-that QR code. Nothing further is required from you for that report — the
-patient can now also see it by logging into the portal directly.
+storage, record the report's details against the matching patient, and
+either mint or reuse that QR code. Nothing further is required from you for
+that report — the patient can now also see it by logging into the portal
+directly.
 
 ### Retrying the same report
 
 If a network error makes you unsure whether we received a report, send the exact
 same PDF again with the same **`externalId`**. We compare its SHA-256 fingerprint:
 
-- Identical bytes return `status: "already_stored"` and a fresh QR code. No
-  duplicate database row or PDF file is created.
+- Identical bytes return `status: "already_stored"` and the same QR as
+  before. No duplicate database row or PDF file is created.
 - Different bytes return `status: "conflict"` and the original report is not
   changed.
 
@@ -299,13 +397,13 @@ corrected document.
 
 ## Cheat sheet
 
-| | Step 1 — register | Step 2 — deliver |
-|---|---|---|
-| **Endpoint** | `POST /api/integration/patients` | `POST /api/integration/reports` |
-| **When** | Once per patient, before their first report | Every time a report is ready |
-| **Body type** | Plain JSON | `multipart/form-data` (metadata + PDF file part) |
-| **You get back** | `username` + `password` (once — save it) | A QR code per report (SVG, ready to print) |
-| **Prerequisite** | None | Patient must already be registered |
+| | Step 1 — register | Step 2 — pre-register (optional) | Step 3 — deliver |
+|---|---|---|---|
+| **Endpoint** | `POST /api/integration/patients` | `POST /api/integration/reports` | `POST /api/integration/reports` |
+| **When** | Once per patient, before their first report | At intake, before the PDF exists | Whenever the PDF is ready |
+| **Body type** | Plain JSON | `multipart/form-data` (metadata only, no file) | `multipart/form-data` (metadata + PDF file part) |
+| **You get back** | `username` + `password` (once — save it) | A QR code (SVG, ready to print) — "not ready yet" until step 3 | The same QR code, now showing the finished PDF |
+| **Prerequisite** | None | Patient must already be registered | Patient must already be registered; step 2 optional |
 
 ## If something goes wrong
 
@@ -314,7 +412,7 @@ corrected document.
 - **`404` on step 1** — you sent a `patientId` we've never seen, without a
   `fullName`. Include `fullName` if this is genuinely a new patient.
   Otherwise, check the `patientId` for typos.
-- **`error` on an individual report in step 2** — that one report failed
+- **`error` on an individual report in step 2 or 3** — that one report failed
   (often: the patient wasn't registered yet, or the file wasn't a valid
   PDF) but the rest of the batch still went through — check each item's
   `status` field.

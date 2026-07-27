@@ -139,6 +139,7 @@ Replace every example value:
 DATABASE_URL=postgresql://DB_USER:DB_PASSWORD@DB_HOST:5432/DB_NAME
 AUTH_SECRET=RANDOM_SECRET_AT_LEAST_32_CHARACTERS
 INTEGRATION_API_KEY=DIFFERENT_RANDOM_API_KEY
+REPORT_SHARE_ENCRYPTION_KEY=THIRD_DISTINCT_RANDOM_SECRET
 PUBLIC_BASE_URL=https://PATIENT_PORTAL_DOMAIN
 HOST=127.0.0.1
 PORT=3000
@@ -150,14 +151,23 @@ entry in `KEY=value` form, quote values that contain shell spaces or special
 characters, and URL-encode special characters inside the database username or
 password.
 
-Generate two unrelated secrets:
+Generate three unrelated secrets:
 
 ```bash
 openssl rand -base64 48
 openssl rand -hex 32
+openssl rand -base64 48
 ```
 
-Use one output for `AUTH_SECRET` and the other for `INTEGRATION_API_KEY`.
+Use one output for `AUTH_SECRET`, one for `INTEGRATION_API_KEY`, and one for
+`REPORT_SHARE_ENCRYPTION_KEY`. The last one encrypts QR share tokens at rest
+so a report's QR code can be reissued unchanged once its PDF arrives — see
+docs/API.md "QR single-report sharing". Treat it exactly like the other two:
+never commit it, never log it. It does not gate whether a QR link still
+works — that's a separate one-way hash unaffected by this key — but rotating
+it does mean any report still awaiting its PDF at rotation time will get a
+brand-new QR (not the one already printed on the patient's card) once that
+PDF finally arrives, so rotate only when necessary.
 
 Load the environment and test PostgreSQL:
 

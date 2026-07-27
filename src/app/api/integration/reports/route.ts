@@ -16,16 +16,26 @@ import {
   MAX_REPORT_BYTES,
   MAX_REPORTS_PER_BATCH,
 } from "@/lib/report-storage";
-import { createShareGrant } from "@/lib/report-share";
+import { getOrMintShareGrant } from "@/lib/report-share";
 
 /**
- * Push endpoint for reports from the clinic's own system (SERVER A): it sends
- * the actual PDF bytes, we store them locally and mint a QR share grant per
- * report — see docs/API.md. Never returns patient credentials — passwords are
- * hashed at rest (see src/lib/password.ts) and are only ever handed back
- * once, by POST /api/integration/patients when a patient is first created.
- * Batch shape: a "metadata" JSON array plus one `file:{externalId}` part per
- * item.
+ * Two-phase endpoint for reports from the clinic's own system (SERVER A) — see
+ * docs/API.md. `file:{externalId}` is optional:
+ *
+ *  - Omitted: pre-registers the appointment/report slot (e.g. at patient
+ *    intake, before any PDF exists) and mints its QR grant. The share page
+ *    shows a "not ready yet" notice until a PDF arrives.
+ *  - Present: attaches the PDF — to a slot pre-registered above if one
+ *    exists (by patientId + externalId), otherwise creates and completes it
+ *    in one call.
+ *
+ * Either way the QR handed back for a given (patientId, externalId) is
+ * always the *same* grant — see getOrMintShareGrant in src/lib/report-share.ts
+ * — because it may already be printed on a physical card the patient was
+ * handed before the PDF ever existed. Never returns patient credentials —
+ * passwords are hashed at rest (see src/lib/password.ts) and are only ever
+ * handed back once, by POST /api/integration/patients when a patient is
+ * first created.
  */
 
 const itemSchema = z.object({
@@ -36,7 +46,10 @@ const itemSchema = z.object({
     .max(60)
     .regex(/^[A-Za-z0-9-]+$/, "patientId may only contain letters, numbers, and dashes"),
   externalId: z.string().trim().min(1).max(120),
-  title: z.string().trim().min(1).max(200),
+  // Optional: the test/report type isn't always known at appointment
+  // pre-registration time. Falls back to "Pending report" until a later
+  // call (typically the PDF attach) supplies it.
+  title: z.string().trim().min(1).max(200).optional(),
   category: z.string().trim().max(80).optional(),
   collectedAt: z.string().trim().min(1),
   physician: z.string().trim().max(120).optional(),
@@ -65,7 +78,7 @@ const batchSchema = z
 interface ItemResult {
   externalId: string;
   patientId: string;
-  status: "stored" | "already_stored" | "conflict" | "error";
+  status: "pending_created" | "pending_exists" | "stored" | "already_stored" | "conflict" | "error";
   error?: string;
   qrGenerated: boolean;
   qr?: { publicId: string; url: string; svg: string; expiresAt: string };
@@ -119,16 +132,46 @@ function isConcurrentReportCreate(error: unknown): boolean {
   return target.includes("patientDbId") && target.includes("sourceRef");
 }
 
-async function mintQr(labResultId: string, origin: string): Promise<NonNullable<ItemResult["qr"]>> {
-  const grant = await createShareGrant(labResultId);
+/**
+ * Reuses the report's existing QR grant when one is recoverable, otherwise
+ * mints a fresh one — see getOrMintShareGrant in src/lib/report-share.ts.
+ * Only deletes on SVG-render failure when the grant was freshly minted here;
+ * a reused grant may already be printed on a physical card, so it must
+ * survive a transient rendering error untouched.
+ */
+async function mintOrReuseQr(
+  labResultId: string,
+  origin: string,
+  options: { refreshExpiry?: boolean } = {},
+): Promise<NonNullable<ItemResult["qr"]>> {
+  const grant = await getOrMintShareGrant(labResultId, options);
   try {
     const url = `${origin}/r/${grant.publicId}#t=${grant.token}`;
     const svg = await QRCode.toString(url, { type: "svg", margin: 1 });
     return { publicId: grant.publicId, url, svg, expiresAt: grant.expiresAt.toISOString() };
   } catch (error) {
-    await db.reportShareGrant.deleteMany({ where: { publicId: grant.publicId } }).catch(() => {});
+    if (!grant.reused) {
+      await db.reportShareGrant.deleteMany({ where: { publicId: grant.publicId } }).catch(() => {});
+    }
     throw error;
   }
+}
+
+type ReportItem = z.infer<typeof itemSchema>;
+
+/** Shared by both attach paths (pre-registered slot, and the raced-create fallback) so the update logic can't drift between them. */
+function attachPdfData(item: ReportItem, pdfPath: string, pdfSha256: string): Prisma.LabResultUpdateInput {
+  return {
+    pdfPath,
+    pdfSha256,
+    status: "COMPLETED",
+    reportedAt: new Date(),
+    ...(item.title ? { testName: item.title } : {}),
+    ...(item.category ? { category: item.category } : {}),
+    ...(item.physician !== undefined ? { orderingPhysician: item.physician ?? null } : {}),
+    ...(item.specimen !== undefined ? { specimen: item.specimen ?? null } : {}),
+    ...(item.notes !== undefined ? { notes: item.notes ?? null } : {}),
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -206,29 +249,34 @@ export async function POST(request: NextRequest) {
     }
 
     const file = form.get(`file:${item.externalId}`);
-    if (!(file instanceof File)) {
-      results.push({ ...base, status: "error", error: `Missing file part "file:${item.externalId}".` });
-      continue;
-    }
-    if (file.size > MAX_REPORT_BYTES) {
+    const hasFile = file instanceof File;
+    if (hasFile && file.size > MAX_REPORT_BYTES) {
       results.push({ ...base, status: "error", error: `PDF exceeds ${MAX_REPORT_BYTES / (1024 * 1024)}MB.` });
       continue;
     }
 
-    let bytes: Buffer;
-    try {
-      bytes = Buffer.from(await file.arrayBuffer());
-    } catch {
-      results.push({ ...base, status: "error", error: "PDF could not be read. Retry this externalId." });
-      continue;
+    let bytes: Buffer | null = null;
+    let incomingSha256: string | null = null;
+    if (hasFile) {
+      try {
+        bytes = Buffer.from(await file.arrayBuffer());
+      } catch {
+        results.push({ ...base, status: "error", error: "PDF could not be read. Retry this externalId." });
+        continue;
+      }
+      if (!looksLikePdf(bytes)) {
+        results.push({ ...base, status: "error", error: "File is not a PDF." });
+        continue;
+      }
+      incomingSha256 = reportSha256(bytes);
     }
-    if (!looksLikePdf(bytes)) {
-      results.push({ ...base, status: "error", error: "File is not a PDF." });
-      continue;
-    }
-    const incomingSha256 = reportSha256(bytes);
 
     let pdfPath: string | null = null;
+    // True once pdfPath is safely referenced by a saved DB row — distinct from
+    // reportStored (used only for the final error message below), because a
+    // slot can already exist (reportStored=true) while a *new* write in this
+    // attempt (attaching a PDF to it) still hasn't landed yet.
+    let pdfLinked = false;
     let reportStored = false;
     let qrAttempted = false;
 
@@ -248,24 +296,96 @@ export async function POST(request: NextRequest) {
         select: { id: true, pdfPath: true, pdfSha256: true },
       });
 
+      // ---- Slot already exists (pre-registered and/or already completed) ----
       if (existing) {
         reportStored = true;
-        if (!(await existingReportMatches(existing, incomingSha256))) {
-          results.push({
-            ...base,
-            status: "conflict",
-            error: "This externalId already belongs to a different PDF. Send the new report with a new externalId.",
-          });
+
+        if (existing.pdfPath) {
+          // Already has a stored PDF.
+          if (!hasFile) {
+            // Re-confirming an already-completed report; no new bytes sent.
+            qrAttempted = true;
+            const qr = await mintOrReuseQr(existing.id, origin);
+            results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
+            continue;
+          }
+          if (!(await existingReportMatches(existing, incomingSha256!))) {
+            results.push({
+              ...base,
+              status: "conflict",
+              error: "This externalId already belongs to a different PDF. Send the new report with a new externalId.",
+            });
+            continue;
+          }
+          qrAttempted = true;
+          const qr = await mintOrReuseQr(existing.id, origin);
+          results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
           continue;
         }
 
+        // Slot is pre-registered but still waiting on its PDF.
+        if (!hasFile) {
+          // Idempotent retry of the pre-registration call itself.
+          qrAttempted = true;
+          const qr = await mintOrReuseQr(existing.id, origin);
+          results.push({ ...base, status: "pending_exists", qrGenerated: true, qr });
+          continue;
+        }
+
+        // Attach: the PDF has arrived for a slot created earlier.
+        pdfPath = await storeReportPdf(bytes!);
+        await db.labResult.update({ where: { id: existing.id }, data: attachPdfData(item, pdfPath, incomingSha256!) });
+        pdfLinked = true;
         qrAttempted = true;
-        const qr = await mintQr(existing.id, origin);
-        results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
+        const qr = await mintOrReuseQr(existing.id, origin, { refreshExpiry: true });
+        results.push({ ...base, status: "stored", qrGenerated: true, qr });
         continue;
       }
 
-      pdfPath = await storeReportPdf(bytes);
+      // ---- No slot yet ----
+      if (!hasFile) {
+        // Pre-register the appointment/report slot and mint its QR — the
+        // patient may be handed a physical card with this code well before
+        // any PDF exists (see docs/API.md).
+        let labResult: { id: string };
+        try {
+          labResult = await db.labResult.create({
+            data: {
+              reference: `SRC-${item.externalId}`,
+              patientDbId: patient.id,
+              category: item.category ?? "Clinic report",
+              testName: item.title ?? "Pending report",
+              status: "PENDING",
+              orderingPhysician: item.physician ?? null,
+              specimen: item.specimen ?? null,
+              collectedAt,
+              reportedAt: null,
+              notes: item.notes ?? null,
+              sourceRef: item.externalId,
+              pdfPath: null,
+              pdfSha256: null,
+            },
+            select: { id: true },
+          });
+        } catch (error) {
+          if (!isConcurrentReportCreate(error)) throw error;
+          const racedReport = await db.labResult.findUnique({
+            where: { patientDbId_sourceRef: { patientDbId: patient.id, sourceRef: item.externalId } },
+            select: { id: true },
+          });
+          if (!racedReport) throw error;
+          labResult = racedReport;
+        }
+
+        reportStored = true;
+        qrAttempted = true;
+        const qr = await mintOrReuseQr(labResult.id, origin);
+        results.push({ ...base, status: "pending_created", qrGenerated: true, qr });
+        continue;
+      }
+
+      // Create and complete in one call — no separate pre-registration happened.
+      pdfPath = await storeReportPdf(bytes!);
       let labResult: { id: string };
       try {
         labResult = await db.labResult.create({
@@ -273,16 +393,16 @@ export async function POST(request: NextRequest) {
             reference: `SRC-${item.externalId}`,
             patientDbId: patient.id,
             category: item.category ?? "Clinic report",
-            testName: item.title,
+            testName: item.title ?? "Pending report",
             status: "COMPLETED",
             orderingPhysician: item.physician ?? null,
             specimen: item.specimen ?? null,
             collectedAt,
-            reportedAt: collectedAt,
+            reportedAt: new Date(),
             notes: item.notes ?? null,
             sourceRef: item.externalId,
             pdfPath,
-            pdfSha256: incomingSha256,
+            pdfSha256: incomingSha256!,
           },
           select: { id: true },
         });
@@ -298,7 +418,20 @@ export async function POST(request: NextRequest) {
         if (!racedReport) throw error;
 
         reportStored = true;
-        if (!(await existingReportMatches(racedReport, incomingSha256))) {
+        if (!racedReport.pdfPath) {
+          // Raced against a concurrent pre-registration call — attach here instead.
+          pdfPath = await storeReportPdf(bytes!);
+          await db.labResult.update({
+            where: { id: racedReport.id },
+            data: attachPdfData(item, pdfPath, incomingSha256!),
+          });
+          pdfLinked = true;
+          qrAttempted = true;
+          const qr = await mintOrReuseQr(racedReport.id, origin, { refreshExpiry: true });
+          results.push({ ...base, status: "stored", qrGenerated: true, qr });
+          continue;
+        }
+        if (!(await existingReportMatches(racedReport, incomingSha256!))) {
           results.push({
             ...base,
             status: "conflict",
@@ -307,19 +440,20 @@ export async function POST(request: NextRequest) {
           continue;
         }
         qrAttempted = true;
-        const qr = await mintQr(racedReport.id, origin);
+        const qr = await mintOrReuseQr(racedReport.id, origin);
         results.push({ ...base, status: "already_stored", qrGenerated: true, qr });
         continue;
       }
 
       reportStored = true;
+      pdfLinked = true;
       qrAttempted = true;
-      const qr = await mintQr(labResult.id, origin);
+      const qr = await mintOrReuseQr(labResult.id, origin);
       results.push({ ...base, status: "stored", qrGenerated: true, qr });
     } catch (error) {
-      // A file not referenced by a successfully created database row is an
+      // A file not referenced by a successfully saved database row is an
       // orphan, so remove it before reporting the item failure.
-      if (pdfPath && !reportStored) {
+      if (pdfPath && !pdfLinked) {
         try {
           await deleteReportPdf(pdfPath);
         } catch {
@@ -343,17 +477,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const pendingCreatedCount = results.filter((r) => r.status === "pending_created").length;
+  const pendingExistsCount = results.filter((r) => r.status === "pending_exists").length;
   const storedCount = results.filter((r) => r.status === "stored").length;
   const alreadyStoredCount = results.filter((r) => r.status === "already_stored").length;
   const conflictCount = results.filter((r) => r.status === "conflict").length;
+  const errorCount =
+    results.length - pendingCreatedCount - pendingExistsCount - storedCount - alreadyStoredCount - conflictCount;
   await audit(
     "SYSTEM",
     "integration",
     "REPORTS_PUSHED",
     undefined,
-    `stored=${storedCount} alreadyStored=${alreadyStoredCount} conflicts=${conflictCount} errors=${
-      results.length - storedCount - alreadyStoredCount - conflictCount
-    }`,
+    `pendingCreated=${pendingCreatedCount} pendingExists=${pendingExistsCount} stored=${storedCount} alreadyStored=${alreadyStoredCount} conflicts=${conflictCount} errors=${errorCount}`,
   );
 
   return NextResponse.json({ results });

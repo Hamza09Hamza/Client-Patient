@@ -122,6 +122,7 @@ const dictionaries = {
     },
     reportShare: {
       notFound: "This link doesn't exist, or the report it points to is no longer available.",
+      pending: "Your results aren't ready yet. Please check back later — this page will show your report as soon as the laboratory validates it.",
       revoked: "This link has been revoked by the clinic.",
       expired: "This link has expired.",
       verifying: "Verifying access…",
@@ -270,6 +271,7 @@ const dictionaries = {
     },
     reportShare: {
       notFound: "Ce lien n'existe pas, ou le rapport auquel il mène n'est plus disponible.",
+      pending: "Vos résultats ne sont pas encore prêts. Veuillez revenir plus tard — cette page affichera votre rapport dès que le laboratoire l'aura validé.",
       revoked: "Ce lien a été révoqué par la clinique.",
       expired: "Ce lien a expiré.",
       verifying: "Vérification de l'accès…",

@@ -77,7 +77,7 @@ function Load-ProductionEnv {
 }
 
 function Validate-ProductionEnv {
-    foreach ($name in @("DATABASE_URL", "AUTH_SECRET", "INTEGRATION_API_KEY", "PUBLIC_BASE_URL")) {
+    foreach ($name in @("DATABASE_URL", "AUTH_SECRET", "INTEGRATION_API_KEY", "REPORT_SHARE_ENCRYPTION_KEY", "PUBLIC_BASE_URL")) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ([string]::IsNullOrEmpty($value)) {
             Die "Missing required production variable: $name"
@@ -89,8 +89,17 @@ function Validate-ProductionEnv {
     if ($env:INTEGRATION_API_KEY.Length -lt 16) {
         Die "INTEGRATION_API_KEY must be at least 16 characters."
     }
+    if ($env:REPORT_SHARE_ENCRYPTION_KEY.Length -lt 32) {
+        Die "REPORT_SHARE_ENCRYPTION_KEY must be at least 32 characters."
+    }
     if ($env:AUTH_SECRET -eq $env:INTEGRATION_API_KEY) {
         Die "AUTH_SECRET and INTEGRATION_API_KEY must differ."
+    }
+    if ($env:AUTH_SECRET -eq $env:REPORT_SHARE_ENCRYPTION_KEY) {
+        Die "AUTH_SECRET and REPORT_SHARE_ENCRYPTION_KEY must differ."
+    }
+    if ($env:INTEGRATION_API_KEY -eq $env:REPORT_SHARE_ENCRYPTION_KEY) {
+        Die "INTEGRATION_API_KEY and REPORT_SHARE_ENCRYPTION_KEY must differ."
     }
     if ($env:PUBLIC_BASE_URL -notmatch '^https://') {
         Die "PUBLIC_BASE_URL must be the canonical HTTPS origin."

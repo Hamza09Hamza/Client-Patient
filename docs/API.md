@@ -114,8 +114,38 @@ Other responses:
 
 ## Report delivery — `POST /api/integration/reports`
 
-SERVER A sends report metadata and the corresponding PDF bytes as
-`multipart/form-data`.
+This is a two-phase, always-multipart/form-data endpoint. The `file:<externalId>`
+part is **optional**:
+
+- **Omitted** — pre-registers the report slot (typically at patient intake, e.g.
+  when an appointment/accession number like `LAB-26070424` is created, before any
+  PDF exists) and mints its QR code. Until a PDF arrives, the QR's page tells the
+  patient their results aren't ready yet.
+- **Present** — attaches the PDF. If the slot was already pre-registered (same
+  `patientId` + `externalId`), it completes that slot and hands back the **same**
+  QR minted in phase 1. If no slot existed yet, it creates and completes one in a
+  single call — useful for reports that don't need a separate intake step.
+
+This lets the clinic print a patient's QR code (see the sample card below) at
+intake — before any result exists — and have it start working automatically the
+moment the PDF is pushed later, with no reprint.
+
+```
+┌─────────────────────────┐
+│      CLINIQUE AMINA      │
+│      PATIENT PORTAL      │
+│                           │
+│    SNOUSSI SEKKAI         │
+│  NIP  PAT-25-16411        │
+│  RDV  LAB-26070424 · 26/07/2026 │
+│                           │
+│   Scan to view results    │
+│   [ QR CODE ]             │
+│                           │
+│   Username: vkCcGpyH      │
+│   Password: aBhRaqtB      │
+└─────────────────────────┘
+```
 
 Current limits:
 
@@ -128,8 +158,9 @@ The clinic normally sends 5–7 reports together. SERVER B processes them
 sequentially inside the request and returns only after the batch is finished. A
 separate queue is not required for the current volume.
 
-Reports are immutable. `(patientId, externalId)` identifies one exact PDF, not a
-mutable slot for the patient's latest document.
+A completed report's PDF is immutable. `(patientId, externalId)` identifies one
+exact PDF, not a mutable slot for the patient's latest document — see
+"Identical retries and external-ID conflicts" below.
 
 ### Request parts
 
@@ -139,7 +170,7 @@ One text part named `metadata` contains a JSON array:
 [
   {
     "patientId": "PAT-2026-0200",
-    "externalId": "A-88213",
+    "externalId": "LAB-26070424",
     "title": "Complete Blood Count",
     "category": "Hematology",
     "collectedAt": "2026-06-14",
@@ -150,18 +181,19 @@ One text part named `metadata` contains a JSON array:
 ]
 ```
 
-Each entry requires a corresponding file part named `file:<externalId>`. For the
-example above, the part name is `file:A-88213`.
+When a file is attached for an entry, its part is named `file:<externalId>` — for
+the example above, `file:LAB-26070424`. Omit that part entirely to pre-register
+the slot instead.
 
 Metadata fields:
 
 | Field | Required | Validation |
 |---|---|---|
 | `patientId` | yes | Must already be provisioned |
-| `externalId` | yes | 1–120 characters; identifies this report within the patient |
-| `title` | yes | 1–200 characters |
+| `externalId` | yes | 1–120 characters; identifies this report within the patient (e.g. the appointment/accession number) |
+| `title` | no | 1–200 characters. Falls back to `"Pending report"` if never supplied. A value sent alongside the PDF (or in a later call) updates it |
 | `category` | no | Maximum 80 characters; defaults to `Clinic report` |
-| `collectedAt` | yes | A date or datetime accepted by JavaScript's date parser |
+| `collectedAt` | yes | A date or datetime accepted by JavaScript's date parser. Only applied when the slot is first created; later calls for the same `externalId` don't change it |
 | `physician` | no | Maximum 120 characters |
 | `specimen` | no | Maximum 80 characters |
 | `notes` | no | Maximum 2,000 characters |
@@ -170,20 +202,43 @@ Metadata fields:
 `(patient, externalId)`, so different patients may use the same external document
 number.
 
-Example:
+Phase 1 — pre-register at intake, no file part:
 
 ```bash
 curl -X POST https://your-domain/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
-  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"A-88213","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-06-14"}]' \
-  -F "file:A-88213=@/path/to/A-88213.pdf;type=application/pdf"
+  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","collectedAt":"2026-07-26"}]'
 ```
+
+Phase 2 — attach the PDF once it's ready (same `patientId` + `externalId`):
+
+```bash
+curl -X POST https://your-domain/api/integration/reports \
+  -H "Authorization: Bearer $KEY" \
+  -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26"}]' \
+  -F "file:LAB-26070424=@/path/to/LAB-26070424.pdf;type=application/pdf"
+```
+
+A single call that both creates and completes a report in one step (no separate
+intake step) uses the same request shape as phase 2 — it works identically
+whether or not a phase-1 call happened first.
+
+### Response `status` values
+
+| `status` | Meaning | `qr` present |
+|---|---|---|
+| `pending_created` | New slot pre-registered (no PDF yet); this is the QR to print | yes |
+| `pending_exists` | Slot was already pre-registered; same QR returned again (idempotent retry) | yes |
+| `stored` | PDF attached/stored just now — the slot may have been pre-registered earlier or created fresh in this call | yes |
+| `already_stored` | PDF already stored previously with matching bytes; same QR returned again | yes |
+| `conflict` | Same `patientId` + `externalId` already has a *different* PDF stored | no |
+| `error` | See `error` for the reason; nothing changed for this item | no |
 
 ### Successful item
 
 ```json
 {
-  "externalId": "A-88213",
+  "externalId": "LAB-26070424",
   "patientId": "PAT-2026-0200",
   "status": "stored",
   "qrGenerated": true,
@@ -197,7 +252,13 @@ curl -X POST https://your-domain/api/integration/reports \
 ```
 
 `qr.svg` is ready to print. The URL grants access only to this report and expires
-after 30 days.
+30 days after it was first minted — attaching a PDF to a pre-registered slot
+extends that back out to a full 30 days from the attach moment, so a QR that's
+been sitting on a printed card doesn't expire right as the result finally arrives.
+
+A pre-registration call (`pending_created`) returns this same shape; scanning
+that QR before the PDF exists shows a "results aren't ready yet" page instead of
+the report.
 
 ### Failed item
 
@@ -239,8 +300,27 @@ available in the logged-in portal and returns:
 }
 ```
 
-Retrying the same patient, `externalId`, and identical PDF mints a new QR
+Retrying the same patient, `externalId`, and identical PDF returns the same QR
+that was already issued for this report — see "Idempotency and QR reuse" below —
 without modifying the stored report.
+
+### Idempotency and QR reuse
+
+Every response for a given `(patientId, externalId)` — the pre-registration
+call, any retry of it, the PDF attach, and any retry of *that* — carries the
+**same** `qr.publicId` and `qr.url`. Server B never mints a second, different QR
+for a report that already has one active; see `getOrMintShareGrant` in
+`src/lib/report-share.ts`. This is what makes it safe to print the QR at intake:
+whatever URL was printed on the card keeps working after the PDF attaches later,
+with no reprint and no need to reconcile two different codes.
+
+The plaintext QR token only ever leaves Server B inside a `qr.url`/`qr.svg` in an
+API response — never logged, and stored at rest only as a one-way hash (for
+verifying scans) plus a separately-keyed encrypted copy (solely so it can be
+handed back in a later response for the same report). SERVER A should still
+retain whichever response it receives rather than assume a later call will
+return it identically shaped — the `status` differs by call (`pending_created`
+vs. `stored`, for example) even when the QR itself doesn't.
 
 ### Identical retries and external-ID conflicts
 
@@ -248,8 +328,8 @@ Server B stores a SHA-256 fingerprint with every integrated PDF.
 
 - If the same patient, `externalId`, and identical PDF bytes arrive again, Server B
   does not write another file or change the report metadata. It returns
-  `status: "already_stored"` and mints a fresh QR so a lost HTTP response can be
-  recovered safely.
+  `status: "already_stored"` and the same QR as before, so a lost HTTP response
+  can be recovered safely.
 - If the same patient and `externalId` arrive with different PDF bytes, Server B
   returns `status: "conflict"`, `qrGenerated: false`, and leaves the original
   report untouched. A corrected or newly issued document must use a new
@@ -264,10 +344,10 @@ Identical retry:
   "status": "already_stored",
   "qrGenerated": true,
   "qr": {
-    "publicId": "RPT-9Q7HT4",
-    "url": "https://your-domain/r/RPT-9Q7HT4#t=<new-opaque-secret>",
+    "publicId": "RPT-7K4MX2",
+    "url": "https://your-domain/r/RPT-7K4MX2#t=<same-opaque-secret>",
     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
-    "expiresAt": "2026-08-23T10:20:00.000Z"
+    "expiresAt": "2026-08-23T10:15:00.000Z"
   }
 }
 ```
@@ -311,12 +391,23 @@ POST /api/public/report-access/exchange
 ```
 
 After a valid exchange, Server B sets a one-hour HttpOnly, SameSite=Strict cookie
-scoped to `/r/{publicId}`. The raw QR token is never stored; the database contains
-only its SHA-256 hash.
+scoped to `/r/{publicId}`. Scan verification never touches plaintext — it hashes
+the incoming token and compares against the stored SHA-256 hash, same as password
+verification. Separately, and only for the report-delivery reuse behavior
+described above, an AES-256-GCM copy of the token is also kept (keyed by
+`REPORT_SHARE_ENCRYPTION_KEY`) so the *same* grant can be handed back in a later
+`/api/integration/reports` response; nothing about scanning or redeeming the QR
+depends on that copy existing.
 
-The PDF route rechecks expiry and revocation on every request. Grants expire after
-30 days. There is not yet an integration endpoint for revocation; operational
-revocation currently requires setting `ReportShareGrant.revokedAt` in PostgreSQL.
+The PDF route rechecks expiry and revocation on every request. Grants expire 30
+days after they were minted, or after they were last extended by a PDF attaching
+to a pre-registered slot (see "Response `status` values" above). There is not yet
+an integration endpoint for revocation; operational revocation currently requires
+setting `ReportShareGrant.revokedAt` in PostgreSQL.
+
+While a report is pre-registered but has no PDF yet, its `/r/{publicId}` page
+shows a "results aren't ready yet" notice rather than "not found" — the grant is
+valid, the report just hasn't arrived.
 
 ## Rate limits and retries
 
@@ -330,9 +421,11 @@ Server B.
 SERVER A should:
 
 1. Inspect every item in the `results` array.
-2. Treat both `stored` and `already_stored` as success and retain their QR
-   output immediately; the plaintext QR token cannot be
-   reconstructed later.
+2. Treat `pending_created`, `pending_exists`, `stored`, and `already_stored` all
+   as success and retain their QR output — it's the same QR every time for a
+   given `(patientId, externalId)`, so it's safe (if inconvenient) to re-fetch
+   it with a follow-up call, but there's no need to; save it from whichever
+   response first returns it.
 3. Retry `error` items using the same `patientId` and `externalId`.
 4. For `conflict`, preserve the original and assign the new document a new
    `externalId`; repeatedly retrying the conflicting ID cannot succeed.

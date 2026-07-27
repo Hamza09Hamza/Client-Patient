@@ -58,12 +58,15 @@ load_production_env() {
 
 validate_production_env() {
   local name
-  for name in DATABASE_URL AUTH_SECRET INTEGRATION_API_KEY PUBLIC_BASE_URL; do
+  for name in DATABASE_URL AUTH_SECRET INTEGRATION_API_KEY REPORT_SHARE_ENCRYPTION_KEY PUBLIC_BASE_URL; do
     [ -n "${!name:-}" ] || die "Missing required production variable: $name"
   done
   [ "${#AUTH_SECRET}" -ge 32 ] || die "AUTH_SECRET must be at least 32 characters."
   [ "${#INTEGRATION_API_KEY}" -ge 16 ] || die "INTEGRATION_API_KEY must be at least 16 characters."
+  [ "${#REPORT_SHARE_ENCRYPTION_KEY}" -ge 32 ] || die "REPORT_SHARE_ENCRYPTION_KEY must be at least 32 characters."
   [ "$AUTH_SECRET" != "$INTEGRATION_API_KEY" ] || die "AUTH_SECRET and INTEGRATION_API_KEY must differ."
+  [ "$AUTH_SECRET" != "$REPORT_SHARE_ENCRYPTION_KEY" ] || die "AUTH_SECRET and REPORT_SHARE_ENCRYPTION_KEY must differ."
+  [ "$INTEGRATION_API_KEY" != "$REPORT_SHARE_ENCRYPTION_KEY" ] || die "INTEGRATION_API_KEY and REPORT_SHARE_ENCRYPTION_KEY must differ."
   case "$PUBLIC_BASE_URL" in
     https://*) ;;
     *) die "PUBLIC_BASE_URL must be the canonical HTTPS origin." ;;

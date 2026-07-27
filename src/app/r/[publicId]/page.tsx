@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { AlertCircle, FileX2 } from "lucide-react";
+import { AlertCircle, Clock3, FileX2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { verifyShareSession, SHARE_COOKIE } from "@/lib/report-share";
 import { getLocale } from "@/lib/i18n/locale";
@@ -91,10 +91,21 @@ export default async function SharedReportPage({ params }: { params: Promise<{ p
   }
 
   const result = await db.labResult.findUnique({ where: { id: grant.labResultId } });
-  if (!result?.pdfPath) {
+  if (!result) {
     return (
       <Shell>
         <Notice icon={FileX2} message={dict.notFound} />
+      </Shell>
+    );
+  }
+  if (!result.pdfPath) {
+    // Grant is valid and scoped to a real report slot — it just hasn't
+    // received its PDF from the clinic system yet (see docs/API.md, the
+    // report-delivery two-phase flow). Distinct from "not found": the QR
+    // may already be on a physical card handed to the patient at intake.
+    return (
+      <Shell>
+        <Notice icon={Clock3} message={dict.pending} />
       </Shell>
     );
   }

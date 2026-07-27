@@ -97,7 +97,14 @@ model ReportShareGrant {
   publicId        String    @unique // short id in the /r/{publicId} URL
   result          LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
   labResultId     String
-  tokenHash       String // sha256 hex of the opaque secret carried in the QR URL fragment
+  tokenHash       String // sha256 hex of the opaque secret carried in the QR URL fragment — used for verification
+  // AES-256-GCM ciphertext of the same opaque secret, keyed by
+  // REPORT_SHARE_ENCRYPTION_KEY (see src/lib/report-share.ts). Verification
+  // never touches this column — it exists solely so the *same* QR minted at
+  // appointment time can be reissued unchanged once the report's PDF lands,
+  // instead of minting a second, different grant. Null for grants minted
+  // before this column existed; those can only be reissued as a new grant.
+  tokenEncrypted  String?
   expiresAt       DateTime
   revokedAt       DateTime?
   redemptionCount Int       @default(0)

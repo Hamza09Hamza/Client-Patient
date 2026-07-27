@@ -107,12 +107,14 @@ For a real deployment, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 ### Environment variables
 
 Set real values before deploying: `DATABASE_URL`, `AUTH_SECRET`
-(32+ random chars, also signs QR share sessions), and `INTEGRATION_API_KEY` (16+
+(32+ random chars, also signs QR share sessions), `INTEGRATION_API_KEY` (16+
 random chars — authenticates `/api/integration/patients` and
-`/api/integration/reports`); see [docs/API.md](docs/API.md). `PUBLIC_BASE_URL` sets
-the origin baked into generated QR URLs. It may fall back to the request origin
-in development, but production refuses report ingestion unless it is an explicit
-HTTPS origin.
+`/api/integration/reports`), and `REPORT_SHARE_ENCRYPTION_KEY` (32+ random
+chars, distinct from the other two — encrypts QR share tokens at rest so a
+report's QR can be reissued unchanged once its PDF arrives); see
+[docs/API.md](docs/API.md). `PUBLIC_BASE_URL` sets the origin baked into
+generated QR URLs. It may fall back to the request origin in development, but
+production refuses report ingestion unless it is an explicit HTTPS origin.
 
 ### Demo credentials (seed data)
 
