@@ -1,15 +1,26 @@
 import { createHash, randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
-import { basename, join } from "path";
+import { basename, isAbsolute, join, resolve } from "path";
 
 /**
  * Local disk storage for report PDFs pushed from the clinic's own system —
  * see src/app/api/integration/reports/route.ts. Files live outside
  * `public/`, under `uploads/`, so they're only reachable through the
  * authenticated portal routes.
+ *
+ * The default resolves relative to process.cwd(), which is only the project
+ * root under `next dev`/`next start`. Next's generated `.next/standalone/
+ * server.js` calls `process.chdir(__dirname)` before startup, so a
+ * standalone deployment MUST set REPORTS_UPLOAD_DIR to an absolute path —
+ * otherwise this silently resolves to a directory under .next/standalone
+ * that neither contains the real files nor survives the next build (which
+ * wipes and regenerates .next/standalone from scratch).
  */
-
-export const REPORTS_DIR = join(process.cwd(), "uploads", "reports");
+export const REPORTS_DIR = process.env.REPORTS_UPLOAD_DIR
+  ? isAbsolute(process.env.REPORTS_UPLOAD_DIR)
+    ? process.env.REPORTS_UPLOAD_DIR
+    : resolve(process.env.REPORTS_UPLOAD_DIR)
+  : join(process.cwd(), "uploads", "reports");
 
 export const MAX_REPORT_BYTES = 25 * 1024 * 1024; // 25MB per PDF
 export const MAX_REPORTS_PER_BATCH = 10; // comfortably covers the clinic's normal 5–7 report bursts

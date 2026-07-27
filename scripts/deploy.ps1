@@ -36,6 +36,7 @@ try {
     $remote = if ($env:GIT_REMOTE) { $env:GIT_REMOTE } else { "origin" }
     $branch = if ($env:DEPLOY_BRANCH) { $env:DEPLOY_BRANCH } else { "main" }
     $serviceName = if ($env:NSSM_SERVICE_NAME) { $env:NSSM_SERVICE_NAME } else { "clinic-patient" }
+    $hostname = if ($env:HOST) { $env:HOST } else { "127.0.0.1" }
     $port = if ($env:PORT) { $env:PORT } else { "3000" }
     $healthUrl = if ($env:HEALTH_URL) { $env:HEALTH_URL } else { "http://127.0.0.1:$port/api/health" }
 
@@ -78,6 +79,17 @@ try {
     npm run build
     if ($LASTEXITCODE -ne 0) { Die "npm run build failed" }
 
+    # next.config.ts sets output: "standalone", and Next.js regenerates
+    # .next/standalone from scratch on every build (cleanDistDir) — it does
+    # NOT carry over public/, .next/static/, or .env.production, and the
+    # generated server.js chdir's into .next/standalone before startup, so a
+    # relative-path default for anything (env files, REPORTS_UPLOAD_DIR) would
+    # silently resolve to the wrong place. Re-copy every time.
+    Write-Log "Copying static assets and env file into .next/standalone"
+    Copy-Item -Path (Join-Path $ProjectRoot "public") -Destination (Join-Path $ProjectRoot ".next\standalone\public") -Recurse -Force
+    Copy-Item -Path (Join-Path $ProjectRoot ".next\static") -Destination (Join-Path $ProjectRoot ".next\standalone\.next\static") -Recurse -Force
+    Copy-Item -Path (Join-Path $ProjectRoot ".env.production") -Destination (Join-Path $ProjectRoot ".next\standalone\.env.production") -Force
+
     Write-Log "Applying pending database migrations"
     npx prisma migrate deploy
     if ($LASTEXITCODE -ne 0) { Die "prisma migrate deploy failed" }
@@ -89,10 +101,16 @@ try {
         if ($LASTEXITCODE -ne 0) { Die "nssm restart failed" }
     } else {
         Die ("Service '$serviceName' is not registered yet. Register it once, e.g.:`n" +
-             "  nssm install $serviceName `"C:\Program Files\nodejs\npm.cmd`" `"run start`"`n" +
+             "  nssm install $serviceName `"C:\Program Files\nodejs\node.exe`" `".next\standalone\server.js`"`n" +
              "  nssm set $serviceName AppDirectory `"$ProjectRoot`"`n" +
-             "  nssm set $serviceName AppEnvironmentExtra NODE_ENV=production`n" +
-             "  nssm start $serviceName")
+             "  nssm set $serviceName AppEnvironmentExtra HOSTNAME=$hostname PORT=$port`n" +
+             "  nssm start $serviceName`n" +
+             "`n" +
+             "  next start does NOT work with output: standalone (see next.config.ts) —`n" +
+             "  the service must run node.exe against .next/standalone/server.js directly,`n" +
+             "  which reads HOSTNAME/PORT env vars rather than CLI flags.`n" +
+             "  Also set REPORTS_UPLOAD_DIR in .env.production to an absolute path (e.g.`n" +
+             "  $ProjectRoot\uploads\reports) — see src/lib/report-storage.ts for why.")
     }
 
     Write-Log "Waiting for $healthUrl"
