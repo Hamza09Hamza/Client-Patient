@@ -1,60 +1,116 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Clinique Amina — "the authenticated document"
+
+   A lab result is not content, it's a *document*: issued, referenced,
+   stamped, signed off. The whole system is built as clinic letterhead
+   rather than as a dashboard.
+
+   Both hues are lifted straight out of logo.png (the CA monogram):
+     marine  #1d3f96  the letterforms      → structure, navigation, actions
+     seal    #ed1b24  the Rod of Asclepius → the authenticity mark, ONLY
+
+   Every foreground/background pair below was checked against WCAG rather
+   than eyeballed; the tightest are ink-faint on canvas (4.57:1) and
+   border-strong on canvas (3.10:1, the 1.4.11 control-boundary floor).
+   If you retune a value, re-check its pairs before shipping it.
+   ───────────────────────────────────────────────────────────────────────── */
+
 @theme {
-  /* Medical teal design system — light theme, WCAG AA verified pairs */
-  --color-canvas: #f4f8f9;
+  /* Paper. Cool, tinted toward the marine — a clinical white sheet, never
+     cream (warm paper turns this into stationery, not a medical record). */
+  --color-canvas: #f1f4fb;
   --color-surface: #ffffff;
-  --color-ink: #10333a;
-  --color-ink-muted: #4d6b72;
-  --color-ink-faint: #7b959b;
-  --color-border: #dde9eb;
-  --color-border-strong: #c3d6da;
+  --color-surface-sunk: #f8fafd;
 
-  --color-primary: #0891b2;
-  --color-primary-strong: #0e7490;
-  --color-primary-deep: #155e75;
-  --color-primary-soft: #e6f6fa;
-  --color-primary-wash: #f0fbfd;
+  /* Ink. Blue-black, as written on a form — not neutral gray, not pure black. */
+  --color-ink: #0f1a33;
+  --color-ink-muted: #48567a;
+  --color-ink-faint: #636f8a;
 
-  --color-accent: #16a34a;
-  --color-accent-strong: #15803d;
-  --color-accent-soft: #e9f7ee;
+  --color-border: #dfe4f0;
+  /* Control boundaries (inputs, secondary buttons) — needs 3:1, not decoration. */
+  --color-border-strong: #7d8ab0;
 
-  --color-warn: #b45309;
-  --color-warn-soft: #fdf1e2;
-  --color-danger: #dc2626;
-  --color-danger-strong: #b91c1c;
-  --color-danger-soft: #fdeded;
-  --color-info: #2563eb;
-  --color-info-soft: #eaf1fe;
+  /* Marine — the monogram blue and its working range. */
+  --color-primary: #1d3f96;
+  --color-primary-strong: #16316d;
+  --color-primary-deep: #0d2050;
+  --color-primary-abyss: #0a1836;
+  --color-primary-bright: #3462c9;
+  --color-primary-soft: #e4eafa;
+  --color-primary-wash: #f2f5fd;
 
-  --font-heading: var(--font-figtree);
-  --font-body: var(--font-noto-sans);
-  --font-sans: var(--font-noto-sans);
+  /* Text sitting *on* a marine surface (masthead, login panel). */
+  --color-on-marine: #c7d3f2;
+  --color-on-marine-dim: #aebde9;
 
-  --shadow-card: 0 1px 2px rgb(16 51 58 / 0.04), 0 4px 16px rgb(16 51 58 / 0.06);
-  --shadow-raised: 0 2px 4px rgb(16 51 58 / 0.06), 0 12px 32px rgb(16 51 58 / 0.12);
-  --shadow-modal: 0 8px 16px rgb(16 51 58 / 0.08), 0 24px 64px rgb(16 51 58 / 0.18);
+  /* Seal — reserved. This red means "verified by the laboratory" and
+     nothing else. It is never an error, never a generic accent, never a
+     hover state. Errors use --color-danger (a deeper red) so that a
+     failure can never be mistaken for a validation mark. */
+  --color-seal: #ed1b24;
+  --color-seal-deep: #c1121a;
+  --color-seal-soft: #fdeceb;
+
+  --color-accent: #0f7a4a;
+  --color-accent-strong: #0b5f39;
+  --color-accent-soft: #e3f5eb;
+
+  --color-warn: #9a5507;
+  --color-warn-soft: #fdf1e3;
+  --color-danger: #c1121a;
+  --color-danger-strong: #9c0e15;
+  --color-danger-soft: #fdeceb;
+  --color-info: #1d3f96;
+  --color-info-soft: #e4eafa;
+
+  /* Type. Source Serif carries authority for titles; Plex Sans is the
+     working face; Plex Mono is for anything a laboratory *issues* —
+     report references, specimen ids, usernames. Plex Sans/Mono are
+     siblings, so the data face harmonises with the UI for free. */
+  --font-display: var(--font-source-serif);
+  --font-body: var(--font-plex-sans);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+
+  /* Paper on a desk: low, crisp, tinted with the ink rather than black. */
+  --shadow-card: 0 1px 2px rgb(15 26 51 / 0.05), 0 4px 14px rgb(15 26 51 / 0.06);
+  --shadow-raised: 0 2px 6px rgb(15 26 51 / 0.07), 0 14px 34px rgb(15 26 51 / 0.13);
+  --shadow-modal: 0 8px 18px rgb(15 26 51 / 0.1), 0 28px 70px rgb(15 26 51 / 0.22);
+  /* The logo plaque — a mounted enamel badge, lit from above. */
+  --shadow-plaque: inset 0 1px 0 rgb(255 255 255 / 0.75), 0 2px 10px rgb(10 24 54 / 0.3);
 
   --animate-shimmer: shimmer 2.4s linear infinite;
-  --animate-plate-scan: plate-scan 7s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  /* 5 frames × 8s — keep in sync with FRAMES/HOLD in components/rb/lab-reel.tsx */
+  --animate-lab-reel: lab-reel 40s ease-in-out infinite;
+  --animate-stamp: stamp 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 
   @keyframes shimmer {
     from { background-position: 200% center; }
     to { background-position: -200% center; }
   }
-  /* A plate reader scans one row, holds briefly, then steps to the next —
-     not a smooth continuous drift. Row height is 21px (16px well + 5px gap,
-     see components/rb/specimen-plate.tsx); steps through rows 0/2/4/6/7 of
-     the 8-row plate, then resets. */
-  @keyframes plate-scan {
-    0%, 8%   { transform: translateY(0); opacity: 0.9; }
-    16%, 24% { transform: translateY(42px); opacity: 0.9; }
-    32%, 40% { transform: translateY(84px); opacity: 0.9; }
-    48%, 56% { transform: translateY(126px); opacity: 0.9; }
-    64%, 70% { transform: translateY(147px); opacity: 0.9; }
-    78%      { transform: translateY(147px); opacity: 0; }
-    100%     { transform: translateY(0); opacity: 0; }
+
+  /* One frame of the laboratory reel. Each image runs the same keyframe on a
+     staggered animation-delay, so five of them chase each other around a
+     single 40s cycle with no JS keeping time.
+
+     Visible for 0–23% (≈9s incl. crossfade), during which it drifts from
+     1.12 to 1.0 — a slow settle rather than a push-in, so the frame comes to
+     rest under the type instead of pulling the eye off it. The return to
+     1.12 happens across the remaining 77%, entirely at opacity 0. */
+  @keyframes lab-reel {
+    0%        { opacity: 0; transform: scale(1.12); }
+    3%        { opacity: 1; }
+    19%       { opacity: 1; }
+    23%, 100% { opacity: 0; transform: scale(1); }
+  }
+
+  /* A rubber stamp coming down on the page. */
+  @keyframes stamp {
+    from { opacity: 0; transform: scale(1.5) rotate(-14deg); }
+    to { opacity: 1; transform: scale(1) rotate(-8deg); }
   }
 }
 
@@ -75,7 +131,7 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading), var(--font-body), system-ui, sans-serif;
+  font-family: var(--font-display), Georgia, serif;
 }
 
 /* Focus visibility — keyboard users always get a clear ring */
@@ -83,6 +139,11 @@ h1, h2, h3, h4, h5, h6 {
   outline: 3px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* …but on a marine surface a marine ring is invisible. */
+.on-marine :focus-visible {
+  outline-color: #ffffff;
 }
 
 ::selection {
@@ -100,6 +161,24 @@ button:disabled {
 /* Tabular figures for data tables and result values */
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Anything the laboratory *issues* — report references, specimen ids,
+   usernames. Mono + tracking so a patient can read a code back over the
+   phone to the clinic without ambiguity. */
+.issued {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* The letterhead rule: marine hairline broken by a seal-red segment at the
+   left, the way a printed clinic letterhead separates masthead from body. */
+.letterhead-rule {
+  height: 2px;
+  background:
+    linear-gradient(to right, var(--color-seal) 0 3.5rem, transparent 3.5rem),
+    linear-gradient(to right, rgb(255 255 255 / 0.28) 0 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -125,7 +204,7 @@ button:disabled {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.3),
     inset 0 -1px 0 rgb(0 0 0 / 0.12),
-    0 8px 32px rgb(8 145 178 / 0.18);
+    0 8px 32px rgb(29 63 150 / 0.22);
 }
 
 /* Print: keep only the report area */

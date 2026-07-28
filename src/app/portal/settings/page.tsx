@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
+import { PageHeading } from "@/components/ui/page-heading";
 import { FadeIn } from "@/components/rb/fade-in";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -39,14 +40,15 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
-        <p className="mt-1 text-[15px] text-ink-muted">{dict.subtitle}</p>
+        <PageHeading title={dict.title} subtitle={dict.subtitle} />
       </FadeIn>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <FadeIn delay={0.08}>
           <Card className="p-6">
-            <h2 className="font-semibold text-ink">{dict.personalDetailsTitle}</h2>
+            <h2 className="font-display text-[17px] font-semibold text-ink">
+              {dict.personalDetailsTitle}
+            </h2>
             <p className="mt-1 text-[13px] text-ink-muted">{dict.personalDetailsDesc}</p>
             <dl className="mt-5 space-y-3.5">
               {rows.map(({ label, value }) => (
@@ -63,7 +65,9 @@ export default async function SettingsPage() {
           <Card className="p-6">
             <div className="flex items-center gap-2.5">
               <KeyRound aria-hidden className="size-5 text-primary" />
-              <h2 className="font-semibold text-ink">{dict.resetPasswordTitle}</h2>
+              <h2 className="font-display text-[17px] font-semibold text-ink">
+                {dict.resetPasswordTitle}
+              </h2>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">{dict.resetPasswordDesc}</p>
           </Card>

@@ -43,11 +43,17 @@ export default async function ResultDetailPage({
 
   await audit("PATIENT", session.username, "RESULT_VIEWED", result.reference);
 
+  // `mono` marks the values the laboratory *issued* — identifiers a patient
+  // may need to read back to the clinic over the phone.
   const meta = [
-    { Icon: User, label: dict.patient, value: `${result.patient.fullName} (${result.patient.patientId})` },
+    {
+      Icon: User,
+      label: dict.patient,
+      value: `${result.patient.fullName} (${result.patient.patientId})`,
+    },
     { Icon: Microscope, label: dict.specimen, value: result.specimen ?? "—" },
     { Icon: Stethoscope, label: dict.physician, value: result.orderingPhysician ?? "—" },
-    { Icon: ClipboardList, label: dict.reportNumber, value: result.reference },
+    { Icon: ClipboardList, label: dict.reportNumber, value: result.reference, mono: true },
   ];
 
   return (
@@ -71,10 +77,10 @@ export default async function ResultDetailPage({
             </div>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[13px] font-semibold uppercase tracking-wider text-primary">
+                <p className="issued text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                   {result.category}
                 </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-[28px]">
+                <h1 className="mt-1.5 font-display text-2xl font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[30px]">
                   {result.testName}
                 </h1>
                 <p className="mt-2 text-sm text-ink-muted">
@@ -91,11 +97,13 @@ export default async function ResultDetailPage({
             </div>
 
             <dl className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-              {meta.map(({ Icon, label, value }) => (
+              {meta.map(({ Icon, label, value, mono }) => (
                 <div key={label} className="flex items-center gap-2.5">
                   <Icon aria-hidden className="size-4 shrink-0 text-primary" />
-                  <dt className="text-[13px] font-medium text-ink-muted">{label}:</dt>
-                  <dd className="text-[13px] font-semibold text-ink">{value}</dd>
+                  <dt className="shrink-0 text-[13px] font-medium text-ink-muted">{label}:</dt>
+                  <dd className={`truncate text-[13px] font-semibold text-ink ${mono ? "issued" : ""}`}>
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>

@@ -10,7 +10,7 @@ export function ShinyText({ text, className }: ShinyTextProps) {
       className={`animate-shimmer bg-clip-text text-transparent bg-[length:200%_auto] ${className ?? ""}`}
       style={{
         backgroundImage:
-          "linear-gradient(110deg, var(--color-primary-deep) 35%, var(--color-primary) 48%, #67e8f9 52%, var(--color-primary-deep) 65%)",
+          "linear-gradient(110deg, var(--color-primary-deep) 35%, var(--color-primary) 48%, var(--color-primary-bright) 52%, var(--color-primary-deep) 65%)",
       }}
     >
       {text}

@@ -46,7 +46,7 @@ export function LocaleSwitcher({ locale, variant = "default" }: LocaleSwitcherPr
                 ? "bg-white/20 text-white"
                 : "bg-primary text-white"
               : isLight
-                ? "text-cyan-100/70 hover:text-white"
+                ? "text-on-marine-dim hover:text-white"
                 : "text-ink-muted hover:text-primary"
           }`}
         >

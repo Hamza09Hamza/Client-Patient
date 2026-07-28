@@ -15,37 +15,49 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="no-print sticky top-0 z-40 border-b border-border bg-surface/85 backdrop-blur-md">
+      {/* The masthead is solid marine, not a translucent white bar: once a
+          patient signs in, every page they see sits on clinic letterhead.
+          The seal-red rule underneath is the same device that separates
+          masthead from body on the sign-in panel. */}
+      <header className="no-print on-marine sticky top-0 z-40 bg-primary-deep text-white">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/portal" aria-label="Portal home">
-            <BrandLockup compact />
+          <Link href="/portal" aria-label={dict.portalNav.overview} className="shrink-0">
+            <BrandLockup compact tone="light" />
           </Link>
 
           <PortalNavLinks dict={dict.portalNav} className="hidden items-center gap-1 md:flex" />
 
-          <div className="flex items-center gap-2">
-            <LocaleSwitcher locale={locale} />
-            <span className="hidden items-center gap-2.5 rounded-xl bg-canvas px-3 py-1.5 sm:flex">
-              <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <LocaleSwitcher locale={locale} variant="light" />
+            <span className="hidden items-center gap-2.5 rounded-lg bg-white/10 px-2.5 py-1.5 sm:flex">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-primary-deep">
                 {session.name.charAt(0)}
               </span>
               <span className="leading-tight">
-                <span className="block max-w-36 truncate text-[13px] font-semibold text-ink">
+                <span className="block max-w-32 truncate text-[13px] font-semibold text-white">
                   {session.name}
                 </span>
-                <span className="block text-[11px] text-ink-muted">{session.username}</span>
+                <span className="issued block text-[10px] text-on-marine-dim">
+                  {session.username}
+                </span>
               </span>
             </span>
-            <LogoutButton label={dict.common.signOut} />
+            <LogoutButton label={dict.common.signOut} tone="light" />
           </div>
         </div>
 
         {/* Mobile nav */}
-        <div className="border-t border-border md:hidden">
+        <div className="border-t border-white/10 md:hidden">
           <PortalNavLinks
             dict={dict.portalNav}
             className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 py-2"
           />
+        </div>
+
+        {/* Contained, not full-bleed: the red segment has to start where the
+            mark starts or it reads as a stray dash in the corner. */}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="letterhead-rule" />
         </div>
       </header>
 

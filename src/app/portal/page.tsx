@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, FileCheck2, FlaskConical, Hourglass } from "lucide-react";
+import { ArrowRight, FlaskConical } from "lucide-react";
 import { requirePatient } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { daysAgo, formatDate } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
+import { PageHeading } from "@/components/ui/page-heading";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ResultStatusBadge } from "@/components/ui/badge";
 import { CountUp } from "@/components/rb/count-up";
 import { FadeIn } from "@/components/rb/fade-in";
 import { ResultRow } from "@/components/portal/result-row";
@@ -33,92 +35,146 @@ export default async function PortalHomePage() {
     db.labResult.findMany({
       where: { patientDbId: session.sub },
       orderBy: { collectedAt: "desc" },
-      take: 5,
+      take: 6,
     }),
   ]);
 
-  const lastCollection = latest[0]?.collectedAt ?? null;
+  const [headline, ...earlier] = latest;
   const firstName = session.name.split(" ")[0];
 
-  const stats = [
-    { label: dict.reportsOnFile, value: total, Icon: FileCheck2, context: dict.reportsOnFileContext },
-    { label: dict.newThisMonth, value: recentCount, Icon: FlaskConical, context: dict.newThisMonthContext },
-    { label: dict.inProgress, value: pendingCount, Icon: Hourglass, context: dict.inProgressContext },
+  // The header line of a patient's file, not four dashboard tiles. These
+  // counts are context for the report below, so they get one compact strip
+  // instead of a grid of cards competing with the thing the patient
+  // actually came here to open.
+  const record = [
+    { label: dict.reportsOnFile, value: total },
+    { label: dict.newThisMonth, value: recentCount },
+    { label: dict.inProgress, value: pendingCount },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">
-          {dict[greetingKey()]}, {firstName}
-        </h1>
-        <p className="mt-1 text-[15px] text-ink-muted">{dict.subtitle}</p>
+        <PageHeading title={`${dict[greetingKey()]}, ${firstName}`} subtitle={dict.subtitle} />
       </FadeIn>
 
-      {/* Stat tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, context }, i) => (
-          <FadeIn key={label} delay={0.08 + i * 0.07}>
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-ink-muted">{label}</span>
-                <Icon aria-hidden className="size-4.5 text-primary" />
-              </div>
-              <p className="mt-2 text-[32px] font-bold leading-none tracking-tight text-ink">
-                <CountUp to={value} delay={0.15 + i * 0.07} />
-              </p>
-              <p className="mt-2 text-[13px] text-ink-faint">{context}</p>
-            </Card>
-          </FadeIn>
-        ))}
-        <FadeIn delay={0.29}>
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-ink-muted">{dict.lastCollection}</span>
-              <CalendarClock aria-hidden className="size-4.5 text-primary" />
+      <FadeIn delay={0.06}>
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-card sm:grid-cols-4">
+          {record.map(({ label, value }, i) => (
+            <div key={label} className="bg-surface px-5 py-4">
+              <dt className="text-[13px] font-medium text-ink-muted">{label}</dt>
+              <dd className="issued mt-1.5 text-[26px] font-semibold leading-none text-ink">
+                <CountUp to={value} delay={0.12 + i * 0.06} />
+              </dd>
             </div>
-            <p className="mt-2 text-[22px] font-bold leading-tight tracking-tight text-ink">
-              {lastCollection ? formatDate(lastCollection) : "—"}
-            </p>
-            <p className="mt-2 text-[13px] text-ink-faint">{dict.lastCollectionContext}</p>
+          ))}
+          <div className="bg-surface px-5 py-4">
+            <dt className="text-[13px] font-medium text-ink-muted">{dict.lastCollection}</dt>
+            <dd className="issued mt-1.5 text-[15px] font-semibold leading-tight text-ink">
+              {headline ? formatDate(headline.collectedAt) : "—"}
+            </dd>
+          </div>
+        </dl>
+      </FadeIn>
+
+      {!headline ? (
+        <FadeIn delay={0.12}>
+          <Card>
+            <EmptyState icon={FlaskConical} title={dict.emptyTitle} description={dict.emptyDesc} />
           </Card>
         </FadeIn>
-      </div>
-
-      {/* Latest reports */}
-      <FadeIn delay={0.2}>
-        <Card>
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h2 className="font-semibold text-ink">{dict.latestReports}</h2>
+      ) : (
+        <>
+          {/* The most recent report carries the weight — it is the reason a
+              patient opened this page at all. */}
+          <FadeIn delay={0.12}>
             <Link
-              href="/portal/results"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+              href={`/portal/results/${headline.id}`}
+              className="group block overflow-hidden rounded-2xl border border-border bg-surface shadow-card transition-shadow duration-200 hover:shadow-raised"
             >
-              {dict.viewAll}
-              <ArrowRight aria-hidden className="size-3.5" />
-            </Link>
-          </div>
-          {latest.length === 0 ? (
-            <EmptyState icon={FlaskConical} title={dict.emptyTitle} description={dict.emptyDesc} />
-          ) : (
-            <div className="divide-y divide-border/70 p-2">
-              {latest.map((r) => (
-                <ResultRow
-                  key={r.id}
-                  result={{
-                    id: r.id,
-                    reference: r.reference,
-                    testName: r.testName,
-                    category: r.category,
-                    status: r.status,
-                    collectedAt: r.collectedAt,
-                  }}
+              <span className="flex items-start gap-4 border-b border-border bg-primary-wash px-5 py-4">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
+                  <FlaskConical aria-hidden className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="issued block text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+                    {dict.latestReport}
+                  </span>
+                  <span className="mt-1 block font-display text-xl font-semibold leading-tight tracking-tight text-ink">
+                    {headline.testName}
+                  </span>
+                </span>
+                <ResultStatusBadge status={headline.status} />
+              </span>
+
+              <dl className="grid gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-3">
+                {[
+                  {
+                    label: dict.collectedLabel,
+                    value: formatDate(headline.collectedAt),
+                    mono: true,
+                  },
+                  { label: dict.referenceLabel, value: headline.reference, mono: true },
+                  { label: dict.categoryLabel, value: headline.category, mono: false },
+                ].map(({ label, value, mono }) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                      {label}
+                    </dt>
+                    <dd
+                      className={`mt-0.5 truncate text-sm font-semibold text-ink ${mono ? "issued" : ""}`}
+                    >
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              <span className="flex items-center gap-1.5 border-t border-border px-5 py-3 text-sm font-semibold text-primary">
+                {dict.openReport}
+                <ArrowRight
+                  aria-hidden
+                  className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
                 />
-              ))}
-            </div>
+              </span>
+            </Link>
+          </FadeIn>
+
+          {earlier.length > 0 && (
+            <FadeIn delay={0.2}>
+              <Card>
+                <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                  <h2 className="font-display text-[17px] font-semibold text-ink">
+                    {dict.earlierReports}
+                  </h2>
+                  <Link
+                    href="/portal/results"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+                  >
+                    {dict.viewAll}
+                    <ArrowRight aria-hidden className="size-3.5" />
+                  </Link>
+                </div>
+                <div className="divide-y divide-border/70 p-2">
+                  {earlier.map((r) => (
+                    <ResultRow
+                      key={r.id}
+                      result={{
+                        id: r.id,
+                        reference: r.reference,
+                        testName: r.testName,
+                        category: r.category,
+                        status: r.status,
+                        collectedAt: r.collectedAt,
+                      }}
+                    />
+                  ))}
+                </div>
+              </Card>
+            </FadeIn>
           )}
-        </Card>
-      </FadeIn>
+        </>
+      )}
     </div>
   );
 }

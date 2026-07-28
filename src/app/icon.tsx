@@ -1,8 +1,9 @@
 import { ImageResponse } from "next/og";
+import { Rod } from "@/components/rod";
 
-// Matches src/components/brand.tsx's BrandMark (primary-colored rounded
-// square + the lucide "activity" glyph) so the browser tab / bookmark icon
-// and search-result favicon are the same mark used everywhere in the UI.
+// The browser-tab favicon: the monogram's rod on the monogram's marine.
+// See src/components/rod.tsx for why the icons use the rod rather than a
+// shrunken copy of the full CA mark.
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
@@ -16,13 +17,11 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0891b2",
+          background: "#1d3f96",
           borderRadius: 7,
         }}
       >
-        <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
-        </svg>
+        <Rod />
       </div>
     ),
     { ...size },

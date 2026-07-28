@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/card";
+import { PageHeading } from "@/components/ui/page-heading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { FadeIn } from "@/components/rb/fade-in";
@@ -99,11 +100,12 @@ export default async function ResultsPage({
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="text-[26px] font-bold tracking-tight text-ink sm:text-3xl">{dict.title}</h1>
-        <p className="mt-1 text-[15px] text-ink-muted">
-          {t(totalCount === 1 ? dict.reportCount : dict.reportCountPlural, { count: totalCount })} —{" "}
-          {dict.subtitle}
-        </p>
+        <PageHeading
+          title={dict.title}
+          subtitle={`${t(totalCount === 1 ? dict.reportCount : dict.reportCountPlural, {
+            count: totalCount,
+          })} — ${dict.subtitle}`}
+        />
       </FadeIn>
 
       <FadeIn delay={0.08}>

@@ -39,8 +39,6 @@ export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
         {dict.signInButton}
         {!pending && <ArrowRight aria-hidden className="size-4" />}
       </SpecularButton>
-
-      <p className="text-center text-sm text-ink-muted">{dict.forgotPasswordText}</p>
     </form>
   );
 }
