@@ -3,6 +3,7 @@ import { ChevronRight, FlaskConical } from "lucide-react";
 import { ResultStatusBadge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import type { ResultStatus } from "@prisma/client";
+import type { Locale } from "@/lib/i18n/locale-types";
 
 export interface ResultRowData {
   id: string;
@@ -13,7 +14,7 @@ export interface ResultRowData {
   collectedAt: Date;
 }
 
-export function ResultRow({ result }: { result: ResultRowData }) {
+export function ResultRow({ result, locale }: { result: ResultRowData; locale: Locale }) {
   return (
     <Link
       href={`/portal/results/${result.id}`}
@@ -26,7 +27,7 @@ export function ResultRow({ result }: { result: ResultRowData }) {
         <span className="block truncate text-[15px] font-semibold text-ink">{result.testName}</span>
         <span className="mt-0.5 block truncate text-[13px] text-ink-muted">
           {result.category} · <span className="issued">{result.reference}</span> ·{" "}
-          {formatDate(result.collectedAt)}
+          {formatDate(result.collectedAt, locale)}
         </span>
         {/* Narrow screens can't fit test name and badge on one line without
             truncating the name to nothing — so the badge drops below it. */}

@@ -6,9 +6,14 @@ interface PaginationProps {
   totalPages: number;
   /** builds the href for a given page, e.g. keeping current filters */
   hrefFor: (page: number) => string;
+  labels: {
+    pagination: string;
+    previous: string;
+    next: string;
+  };
 }
 
-export function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
+export function Pagination({ page, totalPages, hrefFor, labels }: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const item =
@@ -20,9 +25,9 @@ export function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
   for (let p = start; p <= Math.min(totalPages, start + 4); p++) pages.push(p);
 
   return (
-    <nav aria-label="Pagination" className="flex items-center justify-center gap-1.5">
+    <nav aria-label={labels.pagination} className="flex items-center justify-center gap-1.5">
       {page > 1 ? (
-        <Link href={hrefFor(page - 1)} aria-label="Previous page" className={`${item} text-ink-muted hover:bg-primary-soft hover:text-primary-deep`}>
+        <Link href={hrefFor(page - 1)} aria-label={labels.previous} className={`${item} text-ink-muted hover:bg-primary-soft hover:text-primary-deep`}>
           <ChevronLeft aria-hidden className="size-4" />
         </Link>
       ) : (
@@ -42,7 +47,7 @@ export function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
         ),
       )}
       {page < totalPages ? (
-        <Link href={hrefFor(page + 1)} aria-label="Next page" className={`${item} text-ink-muted hover:bg-primary-soft hover:text-primary-deep`}>
+        <Link href={hrefFor(page + 1)} aria-label={labels.next} className={`${item} text-ink-muted hover:bg-primary-soft hover:text-primary-deep`}>
           <ChevronRight aria-hidden className="size-4" />
         </Link>
       ) : (

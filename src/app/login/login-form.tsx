@@ -33,7 +33,14 @@ export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
         hint={dict.usernameHint}
       />
 
-      <PasswordField label={dict.passwordLabel} name="password" autoComplete="current-password" required />
+      <PasswordField
+        label={dict.passwordLabel}
+        name="password"
+        autoComplete="current-password"
+        showPasswordLabel={dict.showPassword}
+        hidePasswordLabel={dict.hidePassword}
+        required
+      />
 
       <SpecularButton type="submit" size="lg" loading={pending}>
         {dict.signInButton}

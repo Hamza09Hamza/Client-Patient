@@ -82,7 +82,7 @@ export function FilterBar({ dict, categories }: FilterBarProps) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <SelectField
-          label="Category"
+          label={dict.categoryLabel}
           hideLabel
           value={searchParams.get("category") ?? ""}
           onChange={(e) => setParams({ category: e.target.value })}
@@ -96,7 +96,7 @@ export function FilterBar({ dict, categories }: FilterBarProps) {
         </SelectField>
 
         <SelectField
-          label="Status"
+          label={dict.statusLabel}
           hideLabel
           value={searchParams.get("status") ?? ""}
           onChange={(e) => setParams({ status: e.target.value })}
@@ -109,7 +109,7 @@ export function FilterBar({ dict, categories }: FilterBarProps) {
 
         <div>
           <label htmlFor="filter-from" className="sr-only">
-            From date
+            {dict.fromDateLabel}
           </label>
           <input
             id="filter-from"
@@ -121,7 +121,7 @@ export function FilterBar({ dict, categories }: FilterBarProps) {
         </div>
         <div>
           <label htmlFor="filter-to" className="sr-only">
-            To date
+            {dict.toDateLabel}
           </label>
           <input
             id="filter-to"
@@ -133,7 +133,7 @@ export function FilterBar({ dict, categories }: FilterBarProps) {
         </div>
 
         <SelectField
-          label="Sort by"
+          label={dict.sortLabel}
           hideLabel
           value={searchParams.get("sort") ?? "newest"}
           onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}

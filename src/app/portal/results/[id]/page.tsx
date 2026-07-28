@@ -20,7 +20,10 @@ import { FadeIn } from "@/components/rb/fade-in";
 import { BrandLockup } from "@/components/brand";
 import { PdfViewer } from "@/components/portal/pdf-viewer";
 
-export const metadata: Metadata = { title: "Report" };
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = getDictionary(await getLocale());
+  return { title: dict.metadata.report };
+}
 
 export default async function ResultDetailPage({
   params,
@@ -84,11 +87,11 @@ export default async function ResultDetailPage({
                   {result.testName}
                 </h1>
                 <p className="mt-2 text-sm text-ink-muted">
-                  {dict.collected} {formatDateTime(result.collectedAt)}
+                  {dict.collected} {formatDateTime(result.collectedAt, locale)}
                   {result.reportedAt && (
                     <>
                       {" "}
-                      · {dict.reported} {formatDateTime(result.reportedAt)}
+                      · {dict.reported} {formatDateTime(result.reportedAt, locale)}
                     </>
                   )}
                 </p>

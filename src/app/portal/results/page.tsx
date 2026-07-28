@@ -13,7 +13,10 @@ import { FadeIn } from "@/components/rb/fade-in";
 import { ResultRow } from "@/components/portal/result-row";
 import { FilterBar } from "./filter-bar";
 
-export const metadata: Metadata = { title: "My results" };
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = getDictionary(await getLocale());
+  return { title: dict.metadata.results };
+}
 
 const PAGE_SIZE = 10;
 const STATUSES: ResultStatus[] = ["PENDING", "COMPLETED", "REVIEWED"];
@@ -41,7 +44,8 @@ export default async function ResultsPage({
 }) {
   const session = await requirePatient();
   const params = await searchParams;
-  const dict = getDictionary(await getLocale()).portalResults;
+  const locale = await getLocale();
+  const dict = getDictionary(locale).portalResults;
 
   const where: Prisma.LabResultWhereInput = { patientDbId: session.sub };
 
@@ -121,6 +125,7 @@ export default async function ResultsPage({
               {results.map((r) => (
                 <ResultRow
                   key={r.id}
+                  locale={locale}
                   result={{
                     id: r.id,
                     reference: r.reference,
@@ -136,7 +141,16 @@ export default async function ResultsPage({
         </Card>
       </FadeIn>
 
-      <Pagination page={page} totalPages={totalPages} hrefFor={hrefFor} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        hrefFor={hrefFor}
+        labels={{
+          pagination: dict.paginationLabel,
+          previous: dict.previousPage,
+          next: dict.nextPage,
+        }}
+      />
     </div>
   );
 }

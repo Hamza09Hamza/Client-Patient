@@ -15,10 +15,13 @@ import { ShareExchange } from "./share-exchange";
 // header in next.config.ts, but explicit here because this is the one route
 // where getting it wrong actually matters. See docs/API.md "QR single-report
 // sharing" and src/app/robots.ts.
-export const metadata: Metadata = {
-  title: "Shared report",
-  robots: { index: false, follow: false, nocache: true },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = getDictionary(await getLocale());
+  return {
+    title: dict.metadata.sharedReport,
+    robots: { index: false, follow: false, nocache: true },
+  };
+}
 
 // Deliberately minimal and self-contained: no nav to /portal, no patient
 // history, no search, no account links — a QR grant authorizes exactly one
@@ -115,7 +118,9 @@ export default async function SharedReportPage({ params }: { params: Promise<{ p
       <div className="border-b border-border/70 px-6 py-5 sm:px-8">
         <p className="text-[13px] font-semibold uppercase tracking-wider text-primary">{result.category}</p>
         <h1 className="mt-1 text-xl font-bold tracking-tight text-ink">{result.testName}</h1>
-        <p className="mt-1.5 text-sm text-ink-muted">{t(dict.collectedOn, { date: formatDateTime(result.collectedAt) })}</p>
+        <p className="mt-1.5 text-sm text-ink-muted">
+          {t(dict.collectedOn, { date: formatDateTime(result.collectedAt, locale) })}
+        </p>
       </div>
       <PdfViewer
         src={`/r/${publicId}/file`}

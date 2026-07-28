@@ -2,6 +2,14 @@ import type { Locale } from "./locale";
 
 const dictionaries = {
   en: {
+    metadata: {
+      patientPortal: "Patient Portal",
+      overview: "Overview",
+      results: "My results",
+      settings: "Settings",
+      report: "Report",
+      sharedReport: "Shared report",
+    },
     common: {
       laboratoryPortal: "Laboratory Portal",
       signOut: "Sign out",
@@ -23,7 +31,7 @@ const dictionaries = {
       heroSubtitle:
         "Secure access to your laboratory reports from the clinic — view, download, and share them with any physician.",
       trust1Title: "Private by design",
-      trust1Text: "Your results are encrypted and visible only to you and your clinic.",
+      trust1Text: "Your results are protected by secure access controls and visible only to you and your clinic.",
       trust2Title: "Complete history",
       trust2Text: "Every report the laboratory has issued for you, in one place.",
       trust3Title: "Available anytime",
@@ -45,6 +53,8 @@ const dictionaries = {
       rateLimitError: "Too many attempts. Try again in {minutes} min.",
       enterUsername: "Enter your username",
       enterPassword: "Enter your password",
+      showPassword: "Show password",
+      hidePassword: "Hide password",
     },
     portalNav: {
       overview: "Overview",
@@ -92,6 +102,14 @@ const dictionaries = {
       sortNameAsc: "Test name A–Z",
       sortCategoryAsc: "Category A–Z",
       reset: "Reset",
+      categoryLabel: "Category",
+      statusLabel: "Status",
+      fromDateLabel: "From date",
+      toDateLabel: "To date",
+      sortLabel: "Sort by",
+      paginationLabel: "Results pagination",
+      previousPage: "Previous page",
+      nextPage: "Next page",
       emptyTitle: "No reports match",
       emptyDesc: "Try widening the date range or clearing some filters.",
     },
@@ -161,6 +179,14 @@ const dictionaries = {
     },
   },
   fr: {
+    metadata: {
+      patientPortal: "Portail patient",
+      overview: "Aperçu",
+      results: "Mes résultats",
+      settings: "Paramètres",
+      report: "Rapport",
+      sharedReport: "Rapport partagé",
+    },
     common: {
       laboratoryPortal: "Portail de laboratoire",
       signOut: "Se déconnecter",
@@ -182,7 +208,8 @@ const dictionaries = {
       heroSubtitle:
         "Accès sécurisé à vos rapports de laboratoire depuis la clinique — consultez, téléchargez et partagez-les avec n'importe quel médecin.",
       trust1Title: "Confidentiel par conception",
-      trust1Text: "Vos résultats sont chiffrés et visibles uniquement par vous et votre clinique.",
+      trust1Text:
+        "Vos résultats sont protégés par des contrôles d'accès sécurisés et visibles uniquement par vous et votre clinique.",
       trust2Title: "Historique complet",
       trust2Text: "Tous les rapports émis par le laboratoire pour vous, au même endroit.",
       trust3Title: "Disponible à tout moment",
@@ -204,6 +231,8 @@ const dictionaries = {
       rateLimitError: "Trop de tentatives. Réessayez dans {minutes} min.",
       enterUsername: "Entrez votre identifiant",
       enterPassword: "Entrez votre mot de passe",
+      showPassword: "Afficher le mot de passe",
+      hidePassword: "Masquer le mot de passe",
     },
     portalNav: {
       overview: "Aperçu",
@@ -251,6 +280,14 @@ const dictionaries = {
       sortNameAsc: "Nom d'analyse A–Z",
       sortCategoryAsc: "Catégorie A–Z",
       reset: "Réinitialiser",
+      categoryLabel: "Catégorie",
+      statusLabel: "Statut",
+      fromDateLabel: "Date de début",
+      toDateLabel: "Date de fin",
+      sortLabel: "Trier par",
+      paginationLabel: "Pagination des résultats",
+      previousPage: "Page précédente",
+      nextPage: "Page suivante",
       emptyTitle: "Aucun rapport ne correspond",
       emptyDesc: "Essayez d'élargir la période ou de retirer certains filtres.",
     },

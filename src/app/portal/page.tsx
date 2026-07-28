@@ -14,7 +14,10 @@ import { CountUp } from "@/components/rb/count-up";
 import { FadeIn } from "@/components/rb/fade-in";
 import { ResultRow } from "@/components/portal/result-row";
 
-export const metadata: Metadata = { title: "Overview" };
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = getDictionary(await getLocale());
+  return { title: dict.metadata.overview };
+}
 
 function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   const hour = new Date().getHours();
@@ -26,7 +29,8 @@ function greetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
 export default async function PortalHomePage() {
   const session = await requirePatient();
   const monthAgo = daysAgo(30);
-  const dict = getDictionary(await getLocale()).portalHome;
+  const locale = await getLocale();
+  const dict = getDictionary(locale).portalHome;
 
   const [total, recentCount, pendingCount, latest] = await Promise.all([
     db.labResult.count({ where: { patientDbId: session.sub } }),
@@ -71,7 +75,7 @@ export default async function PortalHomePage() {
           <div className="bg-surface px-5 py-4">
             <dt className="text-[13px] font-medium text-ink-muted">{dict.lastCollection}</dt>
             <dd className="issued mt-1.5 text-[15px] font-semibold leading-tight text-ink">
-              {headline ? formatDate(headline.collectedAt) : "—"}
+              {headline ? formatDate(headline.collectedAt, locale) : "—"}
             </dd>
           </div>
         </dl>
@@ -111,7 +115,7 @@ export default async function PortalHomePage() {
                 {[
                   {
                     label: dict.collectedLabel,
-                    value: formatDate(headline.collectedAt),
+                    value: formatDate(headline.collectedAt, locale),
                     mono: true,
                   },
                   { label: dict.referenceLabel, value: headline.reference, mono: true },
@@ -159,6 +163,7 @@ export default async function PortalHomePage() {
                   {earlier.map((r) => (
                     <ResultRow
                       key={r.id}
+                      locale={locale}
                       result={{
                         id: r.id,
                         reference: r.reference,

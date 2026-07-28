@@ -35,8 +35,9 @@ const SITE_URL = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replac
 // sign-in page opts back in — see src/app/login/page.tsx and src/app/robots.ts.
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
-  const dict = getDictionary(locale).login;
-  const title = `${CLINIC_NAME} — Patient Portal`;
+  const dictionary = getDictionary(locale);
+  const dict = dictionary.login;
+  const title = `${CLINIC_NAME} — ${dictionary.metadata.patientPortal}`;
 
   return {
     metadataBase: new URL(SITE_URL),

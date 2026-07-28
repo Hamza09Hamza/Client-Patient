@@ -9,11 +9,15 @@ import { Card } from "@/components/ui/card";
 import { PageHeading } from "@/components/ui/page-heading";
 import { FadeIn } from "@/components/rb/fade-in";
 
-export const metadata: Metadata = { title: "Settings" };
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = getDictionary(await getLocale());
+  return { title: dict.metadata.settings };
+}
 
 export default async function SettingsPage() {
   const session = await requirePatient();
-  const dict = getDictionary(await getLocale()).portalSettings;
+  const locale = await getLocale();
+  const dict = getDictionary(locale).portalSettings;
   const patient = await db.patient.findUniqueOrThrow({
     where: { id: session.sub },
     select: {
@@ -31,7 +35,7 @@ export default async function SettingsPage() {
     { label: dict.patientId, value: patient.patientId },
     { label: dict.email, value: patient.email ?? "—" },
     { label: dict.phone, value: patient.phone ?? "—" },
-    { label: dict.dateOfBirth, value: formatDate(patient.dateOfBirth) },
+    { label: dict.dateOfBirth, value: formatDate(patient.dateOfBirth, locale) },
     ...(patient.lastLoginDevice
       ? [{ label: dict.lastSignIn, value: patient.lastLoginDevice }]
       : []),

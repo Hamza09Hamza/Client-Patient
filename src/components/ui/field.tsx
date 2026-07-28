@@ -48,10 +48,26 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
   );
 });
 
-type PasswordFieldProps = Omit<FieldProps, "type">;
+type PasswordFieldProps = Omit<FieldProps, "type"> & {
+  showPasswordLabel: string;
+  hidePasswordLabel: string;
+};
 
 export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
-  function PasswordField({ label, error, hint, id: idProp, className, required, ...props }, ref) {
+  function PasswordField(
+    {
+      label,
+      error,
+      hint,
+      showPasswordLabel,
+      hidePasswordLabel,
+      id: idProp,
+      className,
+      required,
+      ...props
+    },
+    ref,
+  ) {
     const autoId = useId();
     const id = idProp ?? autoId;
     const [visible, setVisible] = useState(false);
@@ -76,7 +92,7 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
           <button
             type="button"
             onClick={() => setVisible((v) => !v)}
-            aria-label={visible ? "Hide password" : "Show password"}
+            aria-label={visible ? hidePasswordLabel : showPasswordLabel}
             className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-ink-faint transition-colors hover:text-primary"
           >
             {visible ? <EyeOff aria-hidden className="size-4.5" /> : <Eye aria-hidden className="size-4.5" />}
