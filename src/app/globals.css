@@ -37,20 +37,24 @@
   --shadow-modal: 0 8px 16px rgb(16 51 58 / 0.08), 0 24px 64px rgb(16 51 58 / 0.18);
 
   --animate-shimmer: shimmer 2.4s linear infinite;
-  --animate-float-slow: float-slow 14s ease-in-out infinite alternate;
-  --animate-float-slower: float-slower 18s ease-in-out infinite alternate;
+  --animate-plate-scan: plate-scan 7s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 
   @keyframes shimmer {
     from { background-position: 200% center; }
     to { background-position: -200% center; }
   }
-  @keyframes float-slow {
-    from { transform: translate3d(-4%, -6%, 0) scale(1); }
-    to { transform: translate3d(5%, 7%, 0) scale(1.12); }
-  }
-  @keyframes float-slower {
-    from { transform: translate3d(6%, 4%, 0) scale(1.08); }
-    to { transform: translate3d(-5%, -7%, 0) scale(0.96); }
+  /* A plate reader scans one row, holds briefly, then steps to the next —
+     not a smooth continuous drift. Row height is 21px (16px well + 5px gap,
+     see components/rb/specimen-plate.tsx); steps through rows 0/2/4/6/7 of
+     the 8-row plate, then resets. */
+  @keyframes plate-scan {
+    0%, 8%   { transform: translateY(0); opacity: 0.9; }
+    16%, 24% { transform: translateY(42px); opacity: 0.9; }
+    32%, 40% { transform: translateY(84px); opacity: 0.9; }
+    48%, 56% { transform: translateY(126px); opacity: 0.9; }
+    64%, 70% { transform: translateY(147px); opacity: 0.9; }
+    78%      { transform: translateY(147px); opacity: 0; }
+    100%     { transform: translateY(0); opacity: 0; }
   }
 }
 

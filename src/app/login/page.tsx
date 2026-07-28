@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Clock3, FileText, ShieldCheck } from "lucide-react";
-import { Aurora } from "@/components/rb/aurora";
+import { SpecimenPlate } from "@/components/rb/specimen-plate";
 import { SplitText } from "@/components/rb/split-text";
 import { FadeIn } from "@/components/rb/fade-in";
 import { BrandLockup, BrandMark } from "@/components/brand";
@@ -37,7 +37,7 @@ export default async function LoginPage() {
     <main className="flex min-h-dvh">
       {/* Brand panel */}
       <section className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-primary-deep p-12 text-white lg:flex">
-        <Aurora />
+        <SpecimenPlate className="top-[52%] -right-4 -translate-y-1/2 -rotate-3 opacity-80" />
         <FadeIn className="relative flex items-center justify-between">
           <span className="flex items-center gap-2.5">
             <BrandMark className="size-10 bg-white/10 backdrop-blur" />

@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { TestTubes } from "lucide-react";
 import { CLINIC_NAME } from "@/lib/config";
 
 export function BrandMark({ className }: { className?: string }) {
@@ -6,7 +6,7 @@ export function BrandMark({ className }: { className?: string }) {
     <span
       className={`flex items-center justify-center rounded-xl bg-primary text-white shadow-sm ${className ?? "size-10"}`}
     >
-      <Activity aria-hidden className="size-[55%]" strokeWidth={2.4} />
+      <TestTubes aria-hidden className="size-[55%]" strokeWidth={2.4} />
     </span>
   );
 }
