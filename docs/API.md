@@ -6,7 +6,7 @@ SERVER B never calls into the clinic's network.
 
 There is no staff console and no password-update operation in this application.
 
-Base URL: `https://cliniqueamina.mobi:8080` in production.
+Base URL: `https://cliniqueamina.mobi:8443` in production.
 
 ## Authentication
 
@@ -205,7 +205,7 @@ number.
 Phase 1 — pre-register at intake, no file part:
 
 ```bash
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","collectedAt":"2026-07-26"}]'
 ```
@@ -213,7 +213,7 @@ curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
 Phase 2 — attach the PDF once it's ready (same `patientId` + `externalId`):
 
 ```bash
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26"}]' \
   -F "file:LAB-26070424=@/path/to/LAB-26070424.pdf;type=application/pdf"
@@ -244,7 +244,7 @@ whether or not a phase-1 call happened first.
   "qrGenerated": true,
   "qr": {
     "publicId": "RPT-7K4MX2",
-    "url": "https://cliniqueamina.mobi:8080/r/RPT-7K4MX2#t=<opaque-secret>",
+    "url": "https://cliniqueamina.mobi:8443/r/RPT-7K4MX2#t=<opaque-secret>",
     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
     "expiresAt": "2026-08-23T10:15:00.000Z"
   }
@@ -345,7 +345,7 @@ Identical retry:
   "qrGenerated": true,
   "qr": {
     "publicId": "RPT-7K4MX2",
-    "url": "https://cliniqueamina.mobi:8080/r/RPT-7K4MX2#t=<same-opaque-secret>",
+    "url": "https://cliniqueamina.mobi:8443/r/RPT-7K4MX2#t=<same-opaque-secret>",
     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
     "expiresAt": "2026-08-23T10:15:00.000Z"
   }
@@ -380,7 +380,7 @@ unreferenced file.
 The QR URL has this form:
 
 ```text
-https://cliniqueamina.mobi:8080/r/{publicId}#t={token}
+https://cliniqueamina.mobi:8443/r/{publicId}#t={token}
 ```
 
 The secret is in the URL fragment, which browsers do not send in the initial HTTP
