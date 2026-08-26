@@ -60,7 +60,7 @@ log "Running application checks"
 npm run check
 
 log "Checking shipped dependencies for high or critical advisories"
-npm audit --omit=dev --audit-level=high
+audit_production_deps
 
 log "Building the production application"
 npm run build

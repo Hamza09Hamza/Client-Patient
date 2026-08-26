@@ -56,6 +56,38 @@ load_production_env() {
   set +a
 }
 
+# GHSA-ggr8-5vv4-36mx (deepmerge-ts, via @prisma/config -> prisma): every
+# current Prisma version pulls this, so npm's only "fix" is downgrading
+# prisma to 6.12.0 — there is no forward fix. Exposure is limited to
+# build/migrate-time config merging, not patient- or clinic-supplied input.
+# Re-run `npm audit --omit=dev --audit-level=high` bare after any dependency
+# bump to see whether this can finally be dropped.
+ACCEPTED_HIGH_ADVISORIES="GHSA-ggr8-5vv4-36mx"
+
+audit_production_deps() {
+  local output status found unexpected
+  set +e
+  output="$(npm audit --omit=dev --audit-level=high 2>&1)"
+  status=$?
+  set -e
+
+  if [ "$status" -eq 0 ]; then
+    printf '%s\n' "$output"
+    return 0
+  fi
+
+  found="$(grep -oE 'GHSA-[a-zA-Z0-9-]+' <<<"$output" | sort -u)"
+  unexpected="$(comm -23 <(printf '%s\n' "$found") <(printf '%s\n' "$ACCEPTED_HIGH_ADVISORIES" | tr ' ' '\n' | sort -u))"
+
+  if [ -n "$unexpected" ]; then
+    printf '%s\n' "$output" >&2
+    die "Unallowed high/critical advisories: $(tr '\n' ' ' <<<"$unexpected")"
+  fi
+
+  printf '%s\n' "$output"
+  log "Only pre-approved advisories present ($ACCEPTED_HIGH_ADVISORIES) — see git log for rationale."
+}
+
 validate_production_env() {
   local name
   for name in DATABASE_URL AUTH_SECRET INTEGRATION_API_KEY REPORT_SHARE_ENCRYPTION_KEY PUBLIC_BASE_URL; do
