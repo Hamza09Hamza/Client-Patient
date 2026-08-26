@@ -80,7 +80,7 @@ generate this one; you own it.
 ```bash
 KEY="<your INTEGRATION_API_KEY>"
 
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/patients \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/patients \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -93,7 +93,7 @@ curl -X POST https://cliniqueamina.mobi:8080/api/integration/patients \
       }'
 ```
 
-Swap `https://cliniqueamina.mobi:8080` for the portal's real address (in local dev,
+Swap `https://cliniqueamina.mobi:8443` for the portal's real address (in local dev,
 `http://localhost:3000`), and `$KEY` for the actual `INTEGRATION_API_KEY`
 value. The response is the JSON shown below, printed straight to your
 terminal.
@@ -178,7 +178,7 @@ this is rejected with an error, but the rest of the batch still goes through.
 ```bash
 KEY="<your INTEGRATION_API_KEY>"
 
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","collectedAt":"2026-07-26"}]'
 ```
@@ -201,7 +201,7 @@ here — if you don't know the test type yet, leave them out; we show
       "qrGenerated": true,
       "qr": {
         "publicId": "RPT-7K4MX2",
-        "url": "https://cliniqueamina.mobi:8080/r/RPT-7K4MX2#t=<opaque-secret>",
+        "url": "https://cliniqueamina.mobi:8443/r/RPT-7K4MX2#t=<opaque-secret>",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
         "expiresAt": "2026-08-25T10:15:00.000Z"
       }
@@ -291,7 +291,7 @@ else is rejected without failing the remaining valid items.
 ```bash
 KEY="<your INTEGRATION_API_KEY>"
 
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[{"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26","physician":"Dr. S. Haddad","specimen":"Whole blood (EDTA)"}]' \
   -F "file:LAB-26070424=@/path/to/LAB-26070424.pdf;type=application/pdf"
@@ -311,7 +311,7 @@ Two things to get right:
 Same request, just more metadata entries and one `-F` file part per report:
 
 ```bash
-curl -X POST https://cliniqueamina.mobi:8080/api/integration/reports \
+curl -X POST https://cliniqueamina.mobi:8443/api/integration/reports \
   -H "Authorization: Bearer $KEY" \
   -F 'metadata=[
         {"patientId":"PAT-2026-0200","externalId":"LAB-26070424","title":"Complete Blood Count","category":"Hematology","collectedAt":"2026-07-26"},
@@ -340,7 +340,7 @@ reports can still fail without sinking the whole batch, so check the
       "qrGenerated": true,
       "qr": {
         "publicId": "RPT-7K4MX2",
-        "url": "https://cliniqueamina.mobi:8080/r/RPT-7K4MX2#t=<opaque-secret>",
+        "url": "https://cliniqueamina.mobi:8443/r/RPT-7K4MX2#t=<opaque-secret>",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" ...>...</svg>",
         "expiresAt": "2026-08-25T11:00:00.000Z"
       }
