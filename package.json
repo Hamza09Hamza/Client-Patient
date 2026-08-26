@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "tsx --test $(find tests -name '*.test.ts')",
     "check": "npm run lint && npm run typecheck && npm test && npx prisma validate",
     "check:release": "bash scripts/check.sh --release",
     "push:verified": "bash scripts/push.sh",
