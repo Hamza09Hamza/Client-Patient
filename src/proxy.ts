@@ -12,14 +12,8 @@ import { db } from "@/lib/db";
 // via an inline style on every /r/* page, so style-src needs 'unsafe-inline'
 // rather than a nonce. script-src is where a nonce actually matters for XSS
 // protection, so it keeps one.
-function withShareCsp(response: NextResponse, nonce: string, isFileRoute: boolean): NextResponse {
+function withShareCsp(response: NextResponse, nonce: string): NextResponse {
   const isDev = process.env.NODE_ENV === "development";
-  // The HTML share page itself has no reason to be framed by anything, ever
-  // — 'none'. Its /file sub-route is the opposite: PdfViewer
-  // (src/components/portal/pdf-viewer.tsx) embeds that exact URL in a
-  // same-origin <iframe> so the browser's native PDF viewer can show it —
-  // needs 'self' or that never gets a chance to render.
-  const frameAncestors = isFileRoute ? "'self'" : "'none'";
   const csp = `
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""};
@@ -29,7 +23,7 @@ function withShareCsp(response: NextResponse, nonce: string, isFileRoute: boolea
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors ${frameAncestors};
+    frame-ancestors 'none';
     upgrade-insecure-requests;
   `
     .replace(/\s{2,}/g, " ")
@@ -46,8 +40,7 @@ export default async function proxy(request: NextRequest) {
     const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
-    const isFileRoute = pathname.endsWith("/file");
-    return withShareCsp(NextResponse.next({ request: { headers: requestHeaders } }), nonce, isFileRoute);
+    return withShareCsp(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
