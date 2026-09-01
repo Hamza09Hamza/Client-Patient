@@ -27,6 +27,7 @@ interface PdfViewerProps {
  */
 export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }: PdfViewerProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,8 +72,11 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
         }
 
         if (!cancelled) setStatus("ready");
-      } catch {
-        if (!cancelled) setStatus("failed");
+      } catch (error) {
+        if (!cancelled) {
+          setErrorDetail(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
+          setStatus("failed");
+        }
       }
     })();
 
@@ -103,7 +107,11 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
           <Download aria-hidden className="size-3.5" />
         </a>
       </div>
-      {status !== "failed" && (
+      {status === "failed" ? (
+        <p className="no-print rounded-2xl border border-border bg-canvas px-4 py-6 text-center text-[12px] text-ink-faint">
+          Preview unavailable ({errorDetail}) — use the buttons above.
+        </p>
+      ) : (
         <div className="no-print overflow-hidden rounded-2xl border border-border bg-canvas p-3">
           {status === "loading" && (
             <div className="flex items-center justify-center gap-2 py-16 text-ink-muted">
