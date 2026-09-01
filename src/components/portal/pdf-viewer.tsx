@@ -6,6 +6,30 @@ import { ArrowUpRight, Download, Loader2 } from "lucide-react";
 
 const WORKER_SRC = "/pdfjs/pdf.worker.min.mjs";
 
+/**
+ * pdfjs-dist 6.x calls Map/WeakMap.prototype.getOrInsertComputed — the
+ * still-fresh TC39 "Map upsert" method. Confirmed on-device: Samsung
+ * Internet's Chromium build doesn't have it yet and throws immediately.
+ * The worker thread gets its own patch in copy-pdf-worker.mjs (a Worker is a
+ * separate JS realm; patching window's Map.prototype here doesn't reach it).
+ */
+function polyfillMapUpsert() {
+  const mapProto = Map.prototype as unknown as Record<string, unknown>;
+  if (typeof mapProto.getOrInsertComputed !== "function") {
+    mapProto.getOrInsertComputed = function (this: Map<unknown, unknown>, key: unknown, compute: (key: unknown) => unknown) {
+      if (!this.has(key)) this.set(key, compute(key));
+      return this.get(key);
+    };
+  }
+  const weakMapProto = WeakMap.prototype as unknown as Record<string, unknown>;
+  if (typeof weakMapProto.getOrInsertComputed !== "function") {
+    weakMapProto.getOrInsertComputed = function (this: WeakMap<object, unknown>, key: object, compute: (key: object) => unknown) {
+      if (!this.has(key)) this.set(key, compute(key));
+      return this.get(key);
+    };
+  }
+}
+
 interface PdfViewerProps {
   src: string;
   /** Tracked download endpoint (audit-logs the download, then redirects to `src`). */
@@ -37,6 +61,7 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
     (async () => {
       setStatus("loading");
       try {
+        polyfillMapUpsert();
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
         loadingTask = pdfjsLib.getDocument({ url: src });

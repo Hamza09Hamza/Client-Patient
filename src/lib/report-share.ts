@@ -23,7 +23,7 @@ import { db } from "@/lib/db";
 
 const PUBLIC_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
 const GRANT_LIFETIME_DAYS = 30;
-const SHARE_SESSION_MINUTES = 60;
+const SHARE_SESSION_MINUTES = 60 * 6; // 6 hours — long enough that a patient reading their own report doesn't get logged out and need to rescan the QR mid-read
 const ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const ENCRYPTION_IV_BYTES = 12;
 const ENCRYPTION_AUTH_TAG_BYTES = 16;

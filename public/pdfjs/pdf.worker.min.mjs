@@ -1,3 +1,4 @@
+if(typeof Map.prototype.getOrInsertComputed!=="function"){Map.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}if(typeof WeakMap.prototype.getOrInsertComputed!=="function"){WeakMap.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
