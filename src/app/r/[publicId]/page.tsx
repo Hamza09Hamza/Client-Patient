@@ -53,7 +53,6 @@ export default async function SharedReportPage({ params }: { params: Promise<{ p
   const { publicId } = await params;
   const locale = await getLocale();
   const dict = getDictionary(locale).reportShare;
-  const pdfDict = getDictionary(locale).pdfViewer;
 
   const grant = await db.reportShareGrant.findUnique({ where: { publicId } });
 
@@ -126,7 +125,6 @@ export default async function SharedReportPage({ params }: { params: Promise<{ p
         src={`/r/${publicId}/file`}
         downloadHref={`/r/${publicId}/file`}
         title={result.testName}
-        dict={pdfDict}
         openLabel={dict.openInNewTab}
         downloadLabel={dict.downloadPdf}
       />

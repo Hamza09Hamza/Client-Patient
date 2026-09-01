@@ -23,8 +23,9 @@ system and are not generated or rewritten by this app.
 - **Bilingual UI** — French/English switcher (top-right on every page), cookie-persisted
 - Overview dashboard: stat tiles, latest reports
 - Full history with **search, category/status filters, date range, sorting, pagination**
-- Report detail: a **custom-built PDF viewer** (page nav, zoom, thumbnails, fullscreen — not
-  the browser's native plugin) for reports pushed from the clinic's own system. No
+- Report detail: the report PDF shown inline via the browser's own native PDF viewer
+  (no custom rendering — every device already ships a tested PDF viewer, ours would
+  just be a worse copy of it), for reports pushed from the clinic's own system. No
   structured values are entered or shown anywhere in the app — every report is the
   clinic's own PDF
 - **No online password reset.** Patients never set their own password, and there's no
@@ -39,7 +40,7 @@ this app never calls out to fetch them. Each call sends a batch (up to 10) of
 `{ patientId, externalId, title, collectedAt, ... }` metadata entries alongside their
 PDF bytes as multipart file parts; this app stores each file locally under
 `uploads/reports/` (identified by patient + `externalId`) and shows it in the patient's
-results list through the built-in PDF viewer. Reports are append-only: an identical
+results list, shown inline via the browser's native PDF viewer. Reports are append-only: an identical
 retry returns `already_stored` without writing another file, while reusing the same
 `externalId` for different PDF bytes returns `conflict`. A corrected document must
 have a new `externalId`. This direction
@@ -167,7 +168,6 @@ scripts/check.sh     local fast or full release verification
 scripts/push.sh      verifies and pushes the current committed branch
 scripts/deploy.sh    manual in-server pull → check → build → migrate → PM2 reload
 scripts/status.sh    read-only server, PM2, health, migration, and disk diagnostics
-scripts/copy-pdf-worker.mjs  syncs the pdf.js worker into public/pdfjs/ (runs on postinstall)
 prisma/              schema + seed (seed refuses to run in production)
 src/proxy.ts         route guard (Next 16 proxy)
 src/lib/              db, session, password (generation + hashing), device,

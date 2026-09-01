@@ -34,7 +34,6 @@ export default async function ResultDetailPage({
   const { id } = await params;
   const locale = await getLocale();
   const dict = getDictionary(locale).portalResultDetail;
-  const pdfDict = getDictionary(locale).pdfViewer;
 
   const result = await db.labResult.findFirst({
     where: { id, patientDbId: session.sub },
@@ -123,7 +122,6 @@ export default async function ResultDetailPage({
                 src={`/portal/results/${result.id}/file`}
                 downloadHref={`/portal/results/${result.id}/download`}
                 title={result.testName}
-                dict={pdfDict}
                 openLabel={dict.openOnClinicSystem}
                 downloadLabel={dict.downloadPdf}
               />

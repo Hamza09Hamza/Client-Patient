@@ -132,22 +132,6 @@ const dictionaries = {
         "This report was provided as a PDF by the clinic's system rather than entered value by value.",
       openOnClinicSystem: "Open in new tab",
     },
-    pdfViewer: {
-      loading: "Loading report…",
-      pageIndicator: "Page {page} of {total}",
-      previousPage: "Previous page",
-      nextPage: "Next page",
-      goToPage: "Go to page",
-      zoomOut: "Zoom out",
-      zoomIn: "Zoom in",
-      fitWidth: "Fit width",
-      pages: "Pages",
-      fullscreen: "Fullscreen",
-      exitFullscreen: "Exit fullscreen",
-      fallbackNotice: "Showing the standard viewer for this file — the enhanced preview couldn't load it.",
-      screenReaderHint:
-        "This preview is a visual rendering with no text alternative. Screen reader users: use Open in new tab or Download above to read this report in an accessible PDF reader.",
-    },
     reportShare: {
       notFound: "This link doesn't exist, or the report it points to is no longer available.",
       pending: "Your results aren't ready yet. Please check back later — this page will show your report as soon as the laboratory validates it.",
@@ -309,22 +293,6 @@ const dictionaries = {
       clinicSourceDesc:
         "Ce rapport a été fourni sous forme de PDF par le système de la clinique plutôt que saisi valeur par valeur.",
       openOnClinicSystem: "Ouvrir dans un nouvel onglet",
-    },
-    pdfViewer: {
-      loading: "Chargement du rapport…",
-      pageIndicator: "Page {page} sur {total}",
-      previousPage: "Page précédente",
-      nextPage: "Page suivante",
-      goToPage: "Aller à la page",
-      zoomOut: "Dézoomer",
-      zoomIn: "Zoomer",
-      fitWidth: "Ajuster à la largeur",
-      pages: "Pages",
-      fullscreen: "Plein écran",
-      exitFullscreen: "Quitter le plein écran",
-      fallbackNotice: "Affichage du lecteur standard pour ce fichier — l'aperçu amélioré n'a pas pu le charger.",
-      screenReaderHint:
-        "Cet aperçu est un rendu visuel sans alternative textuelle. Utilisateurs de lecteur d'écran : utilisez Ouvrir dans un nouvel onglet ou Télécharger ci-dessus pour lire ce rapport dans un lecteur PDF accessible.",
     },
     reportShare: {
       notFound: "Ce lien n'existe pas, ou le rapport auquel il mène n'est plus disponible.",

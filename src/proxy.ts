@@ -8,19 +8,17 @@ import { db } from "@/lib/db";
 //
 // style-src intentionally has no nonce: once a nonce (or hash) is present in a
 // CSP directive, browsers drop 'unsafe-inline' for that directive entirely
-// (not as a fallback). PdfViewer sets canvas.style.width/height via JS for
-// HiDPI-aware sizing on every render (src/components/portal/pdf-viewer.tsx) —
-// that's core to how the viewer works, unconditionally, on every page that
-// renders a PDF, so style-src needs 'unsafe-inline' rather than a nonce.
-// script-src is where a nonce actually matters for XSS protection, so it
-// keeps one.
+// (not as a fallback). BrandLockup (src/components/brand.tsx) sets width/height
+// via an inline style on every /r/* page, so style-src needs 'unsafe-inline'
+// rather than a nonce. script-src is where a nonce actually matters for XSS
+// protection, so it keeps one.
 function withShareCsp(response: NextResponse, nonce: string, isFileRoute: boolean): NextResponse {
   const isDev = process.env.NODE_ENV === "development";
   // The HTML share page itself has no reason to be framed by anything, ever
-  // — 'none'. Its /file sub-route is the opposite: PdfViewer's fallback
+  // — 'none'. Its /file sub-route is the opposite: PdfViewer
   // (src/components/portal/pdf-viewer.tsx) embeds that exact URL in a
-  // same-origin <iframe> when pdfjs can't render client-side, so it needs
-  // 'self' or the browser's native PDF viewer never gets a chance to show.
+  // same-origin <iframe> so the browser's native PDF viewer can show it —
+  // needs 'self' or that never gets a chance to render.
   const frameAncestors = isFileRoute ? "'self'" : "'none'";
   const csp = `
     default-src 'self';
