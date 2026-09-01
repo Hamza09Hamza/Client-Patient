@@ -66,6 +66,21 @@ const nextConfig: NextConfig = {
         source: "/(portal|api)/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
+      {
+        // PdfViewer (src/components/portal/pdf-viewer.tsx) embeds this exact
+        // route in a same-origin <iframe> so the browser's native PDF viewer
+        // renders it. The blanket X-Frame-Options: DENY above blocks ALL
+        // framing, same-origin included, which would leave that iframe
+        // permanently blank. Override to SAMEORIGIN for just these two
+        // byte-serving routes — last-matching header wins on overlapping
+        // sources, see Next's headers() docs.
+        source: "/r/:publicId/file",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+      {
+        source: "/portal/results/:id/file",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };

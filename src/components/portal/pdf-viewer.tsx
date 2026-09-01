@@ -1,4 +1,4 @@
-import { ArrowUpRight, Download, FileText } from "lucide-react";
+import { ArrowUpRight, Download } from "lucide-react";
 
 interface PdfViewerProps {
   src: string;
@@ -10,40 +10,35 @@ interface PdfViewerProps {
 }
 
 /**
- * No inline preview of any kind — deliberately. Embedding a PDF (iframe or
- * otherwise) only works if the browser rendering it has its own PDF viewer
- * wired up, and plenty of real-world contexts don't: an in-app webview
- * inside a chat app or QR-scanner app routinely has none, and just renders
- * blank when asked to embed one. A direct link opened as a real top-level
- * navigation is the one thing that degrades gracefully everywhere — a real
- * browser shows or downloads the PDF; a restricted webview at least gets a
- * full navigation to work with instead of a silently empty frame.
+ * Deliberately just an iframe onto the browser's own PDF viewer — no custom
+ * canvas rendering, no pdfjs, no toolbar. Every device renders PDFs
+ * differently; the browser's native handling is the one thing guaranteed to
+ * already be tested against real-world PDFs, unlike anything we'd build.
  */
 export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }: PdfViewerProps) {
   return (
     <div className="px-4 pb-4 sm:px-6">
-      <div className="no-print flex flex-col items-center gap-4 rounded-2xl border border-border bg-canvas py-12 text-center">
-        <FileText aria-hidden className="size-10 text-ink-faint" />
-        <p className="max-w-xs text-sm font-medium text-ink-muted">{title}</p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-primary-strong"
-          >
-            {openLabel}
-            <ArrowUpRight aria-hidden className="size-4" />
-          </a>
-          <a
-            href={downloadHref}
-            download
-            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border-strong px-4 text-sm font-medium text-primary-deep transition-colors duration-150 hover:bg-primary-wash"
-          >
-            {downloadLabel}
-            <Download aria-hidden className="size-4" />
-          </a>
-        </div>
+      <div className="no-print mb-2 flex items-center justify-end gap-1.5">
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-strong px-2.5 text-[12px] font-medium text-primary-deep transition-colors duration-150 hover:bg-primary-wash"
+        >
+          {openLabel}
+          <ArrowUpRight aria-hidden className="size-3.5" />
+        </a>
+        <a
+          href={downloadHref}
+          download
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[12px] font-medium text-white shadow-sm transition-colors duration-150 hover:bg-primary-strong"
+        >
+          {downloadLabel}
+          <Download aria-hidden className="size-3.5" />
+        </a>
+      </div>
+      <div className="no-print overflow-hidden rounded-2xl border border-border bg-canvas">
+        <iframe src={src} title={title} className="h-[72vh] w-full" />
       </div>
       <p className="hidden text-[12px] print:block">{src}</p>
     </div>
