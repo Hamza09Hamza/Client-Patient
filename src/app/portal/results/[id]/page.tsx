@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   ClipboardList,
@@ -14,6 +15,7 @@ import { audit } from "@/lib/audit";
 import { formatDateTime } from "@/lib/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { isPhoneUserAgent } from "@/lib/device";
 import { Card } from "@/components/ui/card";
 import { ResultStatusBadge } from "@/components/ui/badge";
 import { FadeIn } from "@/components/rb/fade-in";
@@ -44,6 +46,16 @@ export default async function ResultDetailPage({
   if (!result) notFound();
 
   await audit("PATIENT", session.username, "RESULT_VIEWED", result.reference);
+
+  // Phones (confirmed on real hardware: Samsung Internet renders a blank box
+  // for the PDF, see pdf-viewer.tsx) skip this page entirely and land
+  // straight on the file — same behavior as the QR share page.
+  if (result.pdfPath) {
+    const userAgent = (await headers()).get("user-agent");
+    if (isPhoneUserAgent(userAgent)) {
+      redirect(`/portal/results/${result.id}/file`);
+    }
+  }
 
   // `mono` marks the values the laboratory *issued* — identifiers a patient
   // may need to read back to the clinic over the phone.

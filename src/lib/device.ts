@@ -27,3 +27,15 @@ export function describeDevice(userAgent: string | null | undefined): string | n
 
   return label || null;
 }
+
+/**
+ * True for phone UAs specifically (ua-parser-js's `device.type === "mobile"`)
+ * — not tablets, which tend to have working native PDF viewers (iPadOS
+ * Safari, Android tablet Chrome) unlike the phone browsers confirmed broken
+ * on real hardware (Samsung Internet on a Galaxy S21+, see pdf-viewer.tsx).
+ * Used to skip straight to the raw PDF instead of rendering a page around it.
+ */
+export function isPhoneUserAgent(userAgent: string | null | undefined): boolean {
+  if (!userAgent) return false;
+  return UAParser(userAgent).device.type === "mobile";
+}

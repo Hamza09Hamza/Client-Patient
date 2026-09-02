@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { AlertCircle, Clock3, FileX2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { verifyShareSession, SHARE_COOKIE } from "@/lib/report-share";
 import { getLocale } from "@/lib/i18n/locale";
 import { getDictionary, t } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/format";
+import { isPhoneUserAgent } from "@/lib/device";
 import { BrandLockup } from "@/components/brand";
 import { PdfViewer } from "@/components/portal/pdf-viewer";
 import { ShareExchange } from "./share-exchange";
@@ -110,6 +112,15 @@ export default async function SharedReportPage({ params }: { params: Promise<{ p
         <Notice icon={Clock3} message={dict.pending} />
       </Shell>
     );
+  }
+
+  // Phones (confirmed on real hardware: Samsung Internet renders a blank box
+  // for the PDF, see pdf-viewer.tsx) skip the page entirely and land straight
+  // on the file — exactly what "open in new tab" already does today, just
+  // automatic. Desktop keeps the header + viewer since no issue's been seen there.
+  const userAgent = (await headers()).get("user-agent");
+  if (isPhoneUserAgent(userAgent)) {
+    redirect(`/r/${publicId}/file`);
   }
 
   return (
