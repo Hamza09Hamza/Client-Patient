@@ -101,6 +101,12 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
         if (!cancelled) {
           setErrorDetail(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
           setStatus("failed");
+          // Don't make the patient tap anything — take them straight to the
+          // file. A real top-level navigation to a PDF response always does
+          // *something* (native inline view or a download/open-with prompt,
+          // confirmed on-device), unlike embedding it, which some browsers
+          // just render blank. replace() so "back" doesn't return here.
+          window.location.replace(src);
         }
       }
     })();
@@ -134,7 +140,7 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
       </div>
       {status === "failed" ? (
         <p className="no-print rounded-2xl border border-border bg-canvas px-4 py-6 text-center text-[12px] text-ink-faint">
-          Preview unavailable ({errorDetail}) — use the buttons above.
+          Opening your report… ({errorDetail}) — if nothing happens, use the buttons above.
         </p>
       ) : (
         <div className="no-print overflow-hidden rounded-2xl border border-border bg-canvas p-3">
