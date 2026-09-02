@@ -7,13 +7,19 @@ import { ArrowUpRight, Download, Loader2 } from "lucide-react";
 const WORKER_SRC = "/pdfjs/pdf.worker.min.mjs";
 
 /**
- * pdfjs-dist 6.x calls Map/WeakMap.prototype.getOrInsertComputed — the
- * still-fresh TC39 "Map upsert" method. Confirmed on-device: Samsung
- * Internet's Chromium build doesn't have it yet and throws immediately.
- * The worker thread gets its own patch in copy-pdf-worker.mjs (a Worker is a
- * separate JS realm; patching window's Map.prototype here doesn't reach it).
+ * pdfjs-dist 6.x uses a handful of very recent JS builtins internally, none
+ * of which it feature-detects itself. Confirmed on real hardware (Samsung
+ * Internet) that Map/WeakMap.prototype.getOrInsertComputed throws
+ * immediately on an older Chromium build; grepping the shipped bundle for
+ * other equally-new APIs turned up two more in reachable code paths
+ * (Promise.try sits in the worker<->main-thread message plumbing, hit on
+ * nearly every render; Uint8Array.fromBase64 fires for base64-embedded
+ * fonts) — patching all three preemptively since we don't have the device
+ * on hand to re-discover them one crash at a time. The worker thread gets
+ * its own copy of this in copy-pdf-worker.mjs (a Worker is a separate JS
+ * realm; patching window's builtins here doesn't reach it).
  */
-function polyfillMapUpsert() {
+function polyfillPdfjsRuntimeGaps() {
   const mapProto = Map.prototype as unknown as Record<string, unknown>;
   if (typeof mapProto.getOrInsertComputed !== "function") {
     mapProto.getOrInsertComputed = function (this: Map<unknown, unknown>, key: unknown, compute: (key: unknown) => unknown) {
@@ -26,6 +32,23 @@ function polyfillMapUpsert() {
     weakMapProto.getOrInsertComputed = function (this: WeakMap<object, unknown>, key: object, compute: (key: object) => unknown) {
       if (!this.has(key)) this.set(key, compute(key));
       return this.get(key);
+    };
+  }
+
+  const promiseCtor = Promise as unknown as Record<string, unknown>;
+  if (typeof promiseCtor.try !== "function") {
+    promiseCtor.try = function (fn: (...args: unknown[]) => unknown, ...args: unknown[]) {
+      return new Promise((resolve) => resolve(fn(...args)));
+    };
+  }
+
+  const uint8Ctor = Uint8Array as unknown as Record<string, unknown>;
+  if (typeof uint8Ctor.fromBase64 !== "function") {
+    uint8Ctor.fromBase64 = function (base64: string) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
     };
   }
 }
@@ -61,7 +84,7 @@ export function PdfViewer({ src, downloadHref, title, openLabel, downloadLabel }
     (async () => {
       setStatus("loading");
       try {
-        polyfillMapUpsert();
+        polyfillPdfjsRuntimeGaps();
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
         loadingTask = pdfjsLib.getDocument({ url: src });

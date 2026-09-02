@@ -1,4 +1,4 @@
-if(typeof Map.prototype.getOrInsertComputed!=="function"){Map.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}if(typeof WeakMap.prototype.getOrInsertComputed!=="function"){WeakMap.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}
+if(typeof Map.prototype.getOrInsertComputed!=="function"){Map.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}if(typeof WeakMap.prototype.getOrInsertComputed!=="function"){WeakMap.prototype.getOrInsertComputed=function(k,f){if(!this.has(k))this.set(k,f(k));return this.get(k);};}if(typeof Promise.try!=="function"){Promise.try=function(f,...a){return new Promise(r=>r(f(...a)));};}if(typeof Uint8Array.fromBase64!=="function"){Uint8Array.fromBase64=function(b64){const bin=atob(b64);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;};}
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
